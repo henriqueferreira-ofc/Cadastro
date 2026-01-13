@@ -1,0 +1,5 @@
+{
+  "name": "Portal de Atualização Cadastral Seguro",
+  "description": "Sistema empresarial para atualização de dados cadastrais com controle de acesso via base oficial, conformidade com LGPD e exportação para Excel.",
+  "requestFramePermissions": []
+}
