@@ -13,6 +13,10 @@ interface RegistrationFormProps {
 
 const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState({
+    nome: '',
+    estado: '',
+    turma_cesd: '',
+    rg: '',
     email: '',
     telefone: '',
     endereco: '',
@@ -22,7 +26,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     let formattedValue = value;
 
@@ -41,7 +45,11 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
       return;
     }
 
-    // Basic Validation
+    // Validation
+    if (!formData.nome.trim()) { setError('Nome completo é obrigatório.'); return; }
+    if (!formData.rg.trim()) { setError('RG é obrigatório.'); return; }
+    if (!formData.turma_cesd.trim()) { setError('Turma é obrigatória.'); return; }
+
     if (formData.email.indexOf('@') === -1) {
       setError('Informe um e-mail válido.');
       return;
@@ -52,7 +60,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     setTimeout(() => {
       const result = DBService.saveRegistration({
         ...user,
-        ...formData,
+        ...formData, // Overwrite user data with form data
         telefone: formData.telefone.replace(/\D/g, ''),
         cep: formData.cep.replace(/\D/g, '')
       });
@@ -73,36 +81,82 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
           <FileText className="text-blue-600 w-5 h-5" />
           <h2 className="font-bold text-blue-900 uppercase tracking-wider text-sm">Formulário de Atualização</h2>
         </div>
-        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">PASSO 2/2</span>
+        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">ETAPA ÚNICA</span>
       </div>
 
       <form onSubmit={handleSubmit} className="p-8">
-        {/* Section: Official Data (Locked) */}
+        {/* Section: Personal Data */}
         <div className="mb-8">
           <div className="flex items-center space-x-2 mb-4">
-            <ShieldAlert className="text-gray-400 w-4 h-4" />
-            <h3 className="text-xs font-bold text-gray-500 uppercase">Informações da Base Oficial (Bloqueadas)</h3>
+            <CheckCircle2 className="text-blue-600 w-4 h-4" />
+            <h3 className="text-xs font-bold text-gray-500 uppercase">Dados Pessoais</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-6 rounded-xl border border-gray-200">
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nome Completo</label>
-              <div className="text-gray-700 font-semibold">{user.nome}</div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">CPF (Verificado)</label>
+              <div className="bg-gray-200 px-3 py-2 rounded text-gray-600 font-mono font-bold select-none cursor-not-allowed">
+                {user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
+              </div>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">CPF</label>
-              <div className="text-gray-700 font-semibold">{user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Estado (UF)</label>
-              <div className="text-gray-700 font-semibold">{user.estado}</div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Turma - CESD</label>
-              <div className="text-gray-700 font-semibold">{user.turma_cesd}</div>
-            </div>
+
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Documento (RG)</label>
-              <div className="text-gray-700 font-semibold">{user.rg}</div>
+              <label htmlFor="nome" className="block text-sm font-semibold text-gray-700 mb-1">Nome Completo *</label>
+              <input
+                type="text"
+                id="nome"
+                name="nome"
+                required
+                className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                placeholder="Digite seu nome completo"
+                value={formData.nome}
+                onChange={handleInputChange}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="rg" className="block text-sm font-semibold text-gray-700 mb-1">RG *</label>
+              <input
+                type="text"
+                id="rg"
+                name="rg"
+                required
+                className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                placeholder="Número do RG"
+                value={formData.rg}
+                onChange={handleInputChange}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="estado" className="block text-sm font-semibold text-gray-700 mb-1">Estado *</label>
+                <select
+                  id="estado"
+                  name="estado"
+                  required
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                  value={formData.estado}
+                  onChange={handleInputChange}
+                >
+                  <option value="">UF</option>
+                  {['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'].map(uf => (
+                    <option key={uf} value={uf}>{uf}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="turma_cesd" className="block text-sm font-semibold text-gray-700 mb-1">Turma *</label>
+                <input
+                  type="text"
+                  id="turma_cesd"
+                  name="turma_cesd"
+                  required
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                  placeholder="Ex: 2024/1"
+                  value={formData.turma_cesd}
+                  onChange={handleInputChange}
+                />
+              </div>
             </div>
           </div>
         </div>

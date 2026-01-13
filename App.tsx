@@ -39,7 +39,7 @@ const App: React.FC = () => {
             <ShieldCheck className="w-8 h-8" />
             <h1 className="text-xl font-bold tracking-tight">Portal de Atualização Cadastral</h1>
           </div>
-          <button 
+          <button
             onClick={() => setView('ADMIN')}
             className="text-blue-200 hover:text-white transition-colors flex items-center space-x-1 text-sm font-medium"
           >
@@ -54,10 +54,10 @@ const App: React.FC = () => {
         <div className="max-w-3xl mx-auto">
           {view === 'AUTH' && <LoginForm onSuccess={handleLoginSuccess} />}
           {view === 'FORM' && activeUser && (
-            <RegistrationForm 
-              user={activeUser} 
-              onSuccess={handleRegistrationSuccess} 
-              onCancel={resetFlow} 
+            <RegistrationForm
+              user={activeUser}
+              onSuccess={handleRegistrationSuccess}
+              onCancel={resetFlow}
             />
           )}
           {view === 'SUCCESS' && <SuccessScreen onRestart={resetFlow} />}
@@ -68,7 +68,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 py-6 text-center text-sm text-gray-500">
         <div className="max-w-4xl mx-auto px-4">
-          <p>&copy; 2024 Portal Corporativo de Atualização Cadastral. Em conformidade com a LGPD.</p>
+          <p>&copy; 2026 Portal Corporativo de Atualização Cadastral. AAFAB - Associação Amigos da Força Áerea Brasileira. Em conformidade com a LGPD.</p>
           <p className="mt-1">Acesso restrito e monitorado.</p>
         </div>
       </footer>

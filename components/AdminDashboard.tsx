@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { DBService } from '../db_service';
 import { BaseAutorizada, CadastroEnviado } from '../types';
-import { ChevronLeft, Download, Trash2, Database, Table } from 'lucide-react';
+import { ChevronLeft, Download, Trash2, Database, Table, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface AdminDashboardProps {
@@ -50,10 +50,60 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     }
   };
 
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const handleImport = () => {
+    if (!importText.trim()) return;
+
+    // Improved split logic: split by newlines, commas, semicolons to preserve formatting
+    const rawCpfs = importText.split(/[\n,;]+/).map(s => s.trim()).filter(s => s.length > 0);
+
+    if (rawCpfs.length === 0) {
+      alert("Nenhum número encontrado no texto colado.");
+      return;
+    }
+
+    const confirmMessage = `Encontrados ${rawCpfs.length} itens para processar. Deseja iniciar a importação?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    const result = DBService.updateAuthorizedBase(rawCpfs);
+
+    if (result.success) {
+      const skipped = rawCpfs.length - result.count;
+      alert(
+        `Relatório de Importação:\n\n` +
+        `✅ Adicionados com sucesso: ${result.count}\n` +
+        `⚠️ Ignorados (Duplicados ou Inválidos): ${skipped}\n` +
+        `   - O sistema removeu automaticamente duplicatas.\n\n` +
+        `Total na base agora: ${DBService.getBase().length}`
+      );
+      setBase(DBService.getBase());
+      setImportText('');
+      setShowImportModal(false);
+    } else {
+      alert(`Erro: ${result.error}`);
+    }
+  };
+
+  const filteredEnviados = enviados.filter(e =>
+    e.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    e.cpf.includes(searchTerm) ||
+    e.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredBase = base.filter(u =>
+    u.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.cpf.includes(searchTerm)
+  );
+
+  const displayData = tab === 'ENVIADOS' ? filteredEnviados : filteredBase;
+
   return (
-    <div className="animate-in fade-in duration-500">
+    <div className="animate-in fade-in duration-500 relative">
       <div className="flex justify-between items-center mb-6">
-        <button 
+        <button
           onClick={onBack}
           className="flex items-center space-x-2 text-gray-500 hover:text-gray-800 transition-colors"
         >
@@ -61,14 +111,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           <span className="font-medium">Voltar ao Início</span>
         </button>
         <div className="flex space-x-3">
-          <button 
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 shadow-sm transition-all"
+          >
+            <Database className="w-4 h-4" />
+            <span>Importar CPFs</span>
+          </button>
+          <button
             onClick={handleExport}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 shadow-sm transition-all"
           >
             <Download className="w-4 h-4" />
             <span>Exportar Excel</span>
           </button>
-          <button 
+          <button
             onClick={handleReset}
             className="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 border border-red-200 transition-all"
           >
@@ -78,16 +135,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         </div>
       </div>
 
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl">
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Importar Lista de CPFs</h3>
+            <p className="text-sm text-gray-500 mb-4">Cole a lista de CPFs abaixo. O sistema aceita números separados por quebra de linha, vírgula ou espaço. Apenas números serão processados.</p>
+
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder="Cole os CPFs aqui...&#10;111.222.333-44&#10;55566677788&#10;..."
+              className="w-full h-64 p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+            />
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={!importText.trim()}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Processar Importação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
         <div className="flex border-b border-gray-200 bg-gray-50">
-          <button 
+          <button
             onClick={() => setTab('ENVIADOS')}
             className={`px-6 py-4 flex items-center space-x-2 text-sm font-bold transition-all border-b-2 ${tab === 'ENVIADOS' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
           >
             <Database className="w-4 h-4" />
             <span>Tabela: Cadastros Enviados ({enviados.length})</span>
           </button>
-          <button 
+          <button
             onClick={() => setTab('BASE')}
             className={`px-6 py-4 flex items-center space-x-2 text-sm font-bold transition-all border-b-2 ${tab === 'BASE' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
           >
@@ -95,61 +185,73 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             <span>Tabela: Base Autorizada ({base.length})</span>
           </button>
         </div>
-
-        <div className="p-0 overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead className="bg-gray-50 text-[10px] uppercase text-gray-500 font-bold border-b border-gray-200">
-              {tab === 'ENVIADOS' ? (
-                <tr>
-                  <th className="px-4 py-3">CPF</th>
-                  <th className="px-4 py-3">Nome</th>
-                  <th className="px-4 py-3">E-mail</th>
-                  <th className="px-4 py-3">Telefone</th>
-                  <th className="px-4 py-3">Data Envio</th>
-                </tr>
-              ) : (
-                <tr>
-                  <th className="px-4 py-3">CPF</th>
-                  <th className="px-4 py-3">Nome</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Turma</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              )}
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
-              {tab === 'ENVIADOS' ? (
-                enviados.length > 0 ? enviados.map(e => (
-                  <tr key={e.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-gray-600">{e.cpf}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-800">{e.nome}</td>
-                    <td className="px-4 py-3 text-gray-500">{e.email}</td>
-                    <td className="px-4 py-3 text-gray-500">{e.telefone}</td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{new Date(e.data_envio).toLocaleString()}</td>
-                  </tr>
-                )) : (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400 italic">Nenhum cadastro enviado ainda.</td></tr>
-                )
-              ) : (
-                base.map(u => (
-                  <tr key={u.cpf} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-gray-600">{u.cpf}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-800">{u.nome}</td>
-                    <td className="px-4 py-3 text-gray-500">{u.estado}</td>
-                    <td className="px-4 py-3 text-gray-500">{u.turma_cesd}</td>
-                    <td className="px-4 py-3">
-                      {u.cadastro_realizado ? (
-                        <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">CADASTRO REALIZADO</span>
-                      ) : (
-                        <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-[10px] font-bold">AGUARDANDO</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="p-2">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Buscar por nome ou CPF..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+            <Search className="w-4 h-4 absolute left-2.5 top-3 text-gray-400" />
+          </div>
         </div>
+      </div>
+
+      <div className="p-0 overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[800px]">
+          <thead className="bg-gray-50 text-[10px] uppercase text-gray-500 font-bold border-b border-gray-200">
+            {tab === 'ENVIADOS' ? (
+              <tr>
+                <th className="px-4 py-3">CPF</th>
+                <th className="px-4 py-3">Nome</th>
+                <th className="px-4 py-3">E-mail</th>
+                <th className="px-4 py-3">Telefone</th>
+                <th className="px-4 py-3">Data Envio</th>
+              </tr>
+            ) : (
+              <tr>
+                <th className="px-4 py-3">CPF</th>
+                <th className="px-4 py-3">Nome</th>
+                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Turma</th>
+                <th className="px-4 py-3">Status</th>
+              </tr>
+            )}
+          </thead>
+          <tbody className="divide-y divide-gray-100 text-sm">
+            {tab === 'ENVIADOS' ? (
+              displayData.length > 0 ? (displayData as CadastroEnviado[]).map(e => (
+                <tr key={e.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-mono text-gray-600">{e.cpf}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{e.nome}</td>
+                  <td className="px-4 py-3 text-gray-500">{e.email}</td>
+                  <td className="px-4 py-3 text-gray-500">{e.telefone}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{new Date(e.data_envio).toLocaleString()}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400 italic">Nenhum cadastro enviado ainda.</td></tr>
+              )
+            ) : (
+              (displayData as BaseAutorizada[]).map(u => (
+                <tr key={u.cpf} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-mono text-gray-600">{u.cpf}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{u.nome}</td>
+                  <td className="px-4 py-3 text-gray-500">{u.estado}</td>
+                  <td className="px-4 py-3 text-gray-500">{u.turma_cesd}</td>
+                  <td className="px-4 py-3">
+                    {u.cadastro_realizado ? (
+                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">CADASTRO REALIZADO</span>
+                    ) : (
+                      <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-[10px] font-bold">AGUARDANDO</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
