@@ -1,36 +1,9 @@
 
 import { BaseAutorizada, CadastroEnviado } from './types';
 
-// CPFs extraídos da imagem fornecida para validação oficial
-const CPFS_OFICIAIS = [
-  '64527989104', '44223309404', '68810499187', '12549318187', '57843688134', '68194153115', 
-  '88891253868', '48971031168', '73191368134', '57388325115', '60222581115', '61977631549', 
-  '96425121204', '73531668134', '27932331549', '00150853134', '18410948168', '63259292120', 
-  '58494140253', '38118123204', '01241586704', '05539511952', '53611952287', '49290711272', 
-  '56646275215', '82135002715', '51177447215', '63707942287', '27362300244', '60128224191', 
-  '60155823191', '88166432120', '63397395215', '58425248291', '41706509287', '53122617220', 
-  '60037434272', '23533633268', '45596432291', '33543823115', '58189814153', '60704743134', 
-  '51288339104', '84509188753', '70028614153', '91226043115', '81079347287', '61328741215', 
-  '23009228253', '42715061220', '69340274253', '58367838202', '03048752702', '00213121115', 
-  '63677737153', '75556694204', '81304021204', '91336001510', '81054044220', '02108139415', 
-  '59734994220', '89753005204', '30113273702', '07934816215', '24904533268', '86413320525', 
-  '67137788530', '42082243291', '56440847287', '48332962100', '39436021202', '38971411220', 
-  '60031231234', '64919323234', '33621814115', '49013233291', '58748831115', '68845014134', 
-  '05354519234', '49301100291', '80422231204', '46812005202', '53433593115', '46060151120', 
-  '52366472215', '15072471120', '63183201115', '17059043204', '54243911220', '76033431115', 
-  '68032110104', '81216107415', '36340643115', '80567408100', '61343193100', '43533601520', 
-  '79367121120', '22225651204', '87783853434', '73789452115', '88686953115', '78783493115', 
-  '49058201153', '81621535415', '80511745104', '55322043115', '84323282204', '12345678909'
-];
+import { CPFS_OFICIAIS } from './authorized_cpfs';
 
-const INITIAL_BASE: BaseAutorizada[] = CPFS_OFICIAIS.map(cpf => ({
-  cpf,
-  nome: `TITULAR - ${cpf.substring(0, 3)}...${cpf.substring(9)}`,
-  estado: 'SP',
-  turma_cesd: '2024/2',
-  rg: `${Math.floor(Math.random() * 99999999)}`,
-  cadastro_realizado: false
-}));
+const INITIAL_BASE: BaseAutorizada[] = [];
 
 export const DBService = {
   init: () => {
@@ -68,7 +41,7 @@ export const DBService = {
   saveRegistration: (data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>): { success: boolean; error?: string } => {
     const base = DBService.getBase();
     const enviados = DBService.getEnviados();
-    
+
     if (enviados.some(e => e.cpf === data.cpf)) {
       return { success: false, error: 'Tentativa de duplicidade bloqueada: CPF já cadastrado.' };
     }
@@ -87,6 +60,49 @@ export const DBService = {
     localStorage.setItem('cadastros_enviados', JSON.stringify(updatedEnviados));
 
     return { success: true };
+  },
+
+  updateAuthorizedBase: (newCpfs: string[]): { success: boolean; count: number; error?: string } => {
+    try {
+      const currentBase = DBService.getBase();
+      const existingCpfs = new Set(currentBase.map(u => u.cpf));
+
+      let addedCount = 0;
+      const newEntries: BaseAutorizada[] = [];
+
+      newCpfs.forEach(rawCpf => {
+        let cleanCpf = rawCpf.replace(/\D/g, '');
+
+        // Fix: Pad with leading zeros if length is less than 11 (common Excel issue)
+        if (cleanCpf.length > 0 && cleanCpf.length < 11) {
+          cleanCpf = cleanCpf.padStart(11, '0');
+        }
+
+        if (cleanCpf.length === 11 && !existingCpfs.has(cleanCpf)) {
+          newEntries.push({
+            cpf: cleanCpf,
+            nome: `AUTORIZADO - ${cleanCpf.substring(0, 3)}.***.${cleanCpf.substring(9)}`, // Placeholder name since we only have CPF
+            estado: 'SP', // Default assignment, can be edited later if needed
+            turma_cesd: '2024/2',
+            rg: 'N/A',
+            cadastro_realizado: false
+          });
+          existingCpfs.add(cleanCpf);
+          addedCount++;
+        }
+      });
+
+      if (addedCount === 0) {
+        return { success: true, count: 0, error: 'Nenhum CPF novo foi adicionado. Todos já existiam ou eram inválidos.' };
+      }
+
+      const updatedBase = [...currentBase, ...newEntries];
+      localStorage.setItem('base_autorizada', JSON.stringify(updatedBase));
+
+      return { success: true, count: addedCount };
+    } catch (e) {
+      return { success: false, count: 0, error: 'Erro ao atualizar base de dados.' };
+    }
   },
 
   resetData: () => {
