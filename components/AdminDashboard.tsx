@@ -15,8 +15,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [tab, setTab] = useState<'ENVIADOS' | 'BASE'>('ENVIADOS');
 
   useEffect(() => {
-    setBase(DBService.getBase());
-    setEnviados(DBService.getEnviados());
+    const baseData = DBService.getBase();
+    const enviadosData = DBService.getEnviados();
+    setBase(baseData);
+    setEnviados(enviadosData);
+    console.log(`Admin Carregado: ${baseData.length} CPFs na base, ${enviadosData.length} enviados.`);
   }, []);
 
   const handleExport = () => {
@@ -132,13 +135,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             <Database className="w-4 h-4" />
             <span>Importar CPFs</span>
           </button>
-            <button
-              onClick={handleExportBase}
-              className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 shadow-sm transition-all"
-            >
-              <Download className="w-4 h-4" />
-              <span>Exportar Base (JSON)</span>
-            </button>
+          <button
+            onClick={handleExportBase}
+            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 shadow-sm transition-all"
+          >
+            <Download className="w-4 h-4" />
+            <span>Exportar Base (JSON)</span>
+          </button>
           <button
             onClick={handleExport}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 shadow-sm transition-all"
@@ -206,16 +209,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             <span>Tabela: Base Autorizada ({base.length})</span>
           </button>
         </div>
-        <div className="p-2">
-          <div className="relative">
+        <div className="p-4 bg-gray-50 flex items-center justify-between border-b border-gray-200">
+          <div className="relative flex-grow max-w-md">
             <input
               type="text"
               placeholder="Buscar por nome ou CPF..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
             />
-            <Search className="w-4 h-4 absolute left-2.5 top-3 text-gray-400" />
+            <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+          </div>
+          <div className="ml-4 text-[10px] text-gray-400 font-mono">
+            {tab === 'BASE' ? `${filteredBase.length} de ${base.length} CPFs autorizados` : `${filteredEnviados.length} envios encontrados`}
           </div>
         </div>
       </div>
