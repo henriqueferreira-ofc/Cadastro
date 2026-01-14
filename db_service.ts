@@ -42,7 +42,7 @@ export const DBService = {
     if (!isAuthorized) {
       return {
         success: false,
-        error: 'Acesso negado: Este CPF não consta na lista oficial de autorizados para atualização. Por favor, verifique se digitou corretamente ou entre em contato com o suporte.'
+        error: 'CPF não autorizado para cadastro.'
       };
     }
 
