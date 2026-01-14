@@ -6,17 +6,15 @@ const INITIAL_BASE: BaseAutorizada[] = [];
 
 export const DBService = {
   init: () => {
-    const currentBase = DBService.getBase();
-
-    // Sempre carregar/sincronizar se a base estiver vazia
-    if (currentBase.length === 0) {
-      console.log('Populando base inicial de CPFs autorizados...');
-      if (Array.isArray(CPFS_OFICIAIS) && CPFS_OFICIAIS.length > 0) {
-        DBService.updateAuthorizedBase(CPFS_OFICIAIS);
-        console.log(`${CPFS_OFICIAIS.length} CPFs carregados com sucesso.`);
-      } else {
-        console.error('Erro crítico: Lista de CPFs oficiais está vazia ou indifinida.');
+    // Forçar sincronização com a base embutida sempre que o App iniciar
+    console.log('Verificando integridade da base de CPFs...');
+    if (Array.isArray(CPFS_OFICIAIS) && CPFS_OFICIAIS.length > 0) {
+      const { count } = DBService.updateAuthorizedBase(CPFS_OFICIAIS);
+      if (count > 0) {
+        console.log(`${count} novos CPFs autorizados foram sincronizados.`);
       }
+    } else {
+      console.error('Erro crítico: Lista de CPFs oficiais está vazia ou indefinida.');
     }
 
     if (!localStorage.getItem('cadastros_enviados')) {
