@@ -8,70 +8,29 @@ export const DBService = {
   init: () => {
     const currentBase = DBService.getBase();
 
-    // Tentativa de carregar/sincronizar se a base estiver vazia ou para garantir atualização inicial
+    // Sempre carregar/sincronizar se a base estiver vazia
     if (currentBase.length === 0) {
-      console.log('Iniciando sincronização da base de CPFs...');
-      const baseUrl = (typeof import !== 'undefined' && (import as any).meta && (import as any).meta.env && (import as any).meta.env.BASE_URL)
-        ? (import as any).meta.env.BASE_URL
-        : './';
-
-// 1. Tentar carregar do ENVIAR.csv (Prioridade)
-fetch(`${baseUrl}ENVIAR.csv`)
-  .then(res => {
-    if (!res.ok) throw new Error('Arquivo CSV não encontrado');
-    return res.text();
-  })
-  .then(csvText => {
-    const lines = csvText.split(/\r?\n/);
-    const cpfs: string[] = [];
-    lines.forEach(line => {
-      const clean = line.trim().replace(/\D/g, '');
-      if (clean.length === 11) cpfs.push(clean);
-    });
-
-    if (cpfs.length > 0) {
-      console.log(`${cpfs.length} CPFs encontrados no CSV. Atualizando base...`);
-      DBService.updateAuthorizedBase(cpfs);
-    } else {
-      console.warn('CSV lido mas nenhum CPF válido (11 dígitos) foi encontrado.');
-    }
-  })
-  .catch((err) => {
-    console.error('Erro ao ler ENVIAR.csv:', err.message);
-    // 2. Fallback: Tentar carregar do authorized_cpfs.json
-    fetch(`${baseUrl}authorized_cpfs.json`)
-      .then(res => {
-        if (!res.ok) throw new Error('Arquivo JSON não encontrado');
-        return res.json();
-      })
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          console.log('Carregando CPFs via fallback JSON...');
-          DBService.updateAuthorizedBase(data.map(String));
-        }
-      })
-      .catch(() => {
-        // 3. Fallback final: Usar CPFS_OFICIAIS se existirem
-        if (Array.isArray(CPFS_OFICIAIS) && CPFS_OFICIAIS.length > 0) {
-          console.log('Carregando CPFs via fallback embutido...');
-          DBService.updateAuthorizedBase(CPFS_OFICIAIS);
-        }
-      });
-  });
+      console.log('Populando base inicial de CPFs autorizados...');
+      if (Array.isArray(CPFS_OFICIAIS) && CPFS_OFICIAIS.length > 0) {
+        DBService.updateAuthorizedBase(CPFS_OFICIAIS);
+        console.log(`${CPFS_OFICIAIS.length} CPFs carregados com sucesso.`);
+      } else {
+        console.error('Erro crítico: Lista de CPFs oficiais está vazia ou indifinida.');
+      }
     }
 
-if (!localStorage.getItem('cadastros_enviados')) {
-  localStorage.setItem('cadastros_enviados', JSON.stringify([]));
-}
+    if (!localStorage.getItem('cadastros_enviados')) {
+      localStorage.setItem('cadastros_enviados', JSON.stringify([]));
+    }
   },
 
-getBase: (): BaseAutorizada[] => {
-  try {
-    return JSON.parse(localStorage.getItem('base_autorizada') || '[]');
-  } catch (e) {
-    return [];
-  }
-},
+  getBase: (): BaseAutorizada[] => {
+    try {
+      return JSON.parse(localStorage.getItem('base_autorizada') || '[]');
+    } catch (e) {
+      return [];
+    }
+  },
 
   getEnviados: (): CadastroEnviado[] => {
     try {
@@ -81,89 +40,89 @@ getBase: (): BaseAutorizada[] => {
     }
   },
 
-    checkCPF: (cpf: string): { success: boolean; data?: BaseAutorizada; error?: string } => {
-      const base = DBService.getBase();
-      const cleanCpf = cpf.replace(/\D/g, '');
-      const user = base.find(u => u.cpf === cleanCpf);
+  checkCPF: (cpf: string): { success: boolean; data?: BaseAutorizada; error?: string } => {
+    const base = DBService.getBase();
+    const cleanCpf = cpf.replace(/\D/g, '');
+    const user = base.find(u => u.cpf === cleanCpf);
 
-      if (!user) {
-        return { success: false, error: 'Acesso negado: Este CPF não consta na lista oficial de autorizados para atualização.' };
-      }
-      if (user.cadastro_realizado) {
-        return { success: false, error: 'O cadastro para este CPF já foi realizado e processado anteriormente.' };
-      }
+    if (!user) {
+      return { success: false, error: 'Acesso negado: Este CPF não consta na lista oficial de autorizados para atualização.' };
+    }
+    if (user.cadastro_realizado) {
+      return { success: false, error: 'O cadastro para este CPF já foi realizado e processado anteriormente.' };
+    }
 
-      return { success: true, data: user };
-    },
+    return { success: true, data: user };
+  },
 
-      saveRegistration: (data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>): { success: boolean; error?: string } => {
-        const base = DBService.getBase();
-        const enviados = DBService.getEnviados();
+  saveRegistration: (data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>): { success: boolean; error?: string } => {
+    const base = DBService.getBase();
+    const enviados = DBService.getEnviados();
 
-        if (enviados.some(e => e.cpf === data.cpf)) {
-          return { success: false, error: 'Tentativa de duplicidade bloqueada: CPF já cadastrado.' };
+    if (enviados.some(e => e.cpf === data.cpf)) {
+      return { success: false, error: 'Tentativa de duplicidade bloqueada: CPF já cadastrado.' };
+    }
+
+    const newRecord: CadastroEnviado = {
+      ...data,
+      id: enviados.length + 1,
+      data_envio: new Date().toISOString(),
+      status: 'CONCLUÍDO'
+    };
+
+    const updatedBase = base.map(u => u.cpf === data.cpf ? { ...u, cadastro_realizado: true } : u);
+    const updatedEnviados = [...enviados, newRecord];
+
+    localStorage.setItem('base_autorizada', JSON.stringify(updatedBase));
+    localStorage.setItem('cadastros_enviados', JSON.stringify(updatedEnviados));
+
+    return { success: true };
+  },
+
+  updateAuthorizedBase: (newCpfs: string[]): { success: boolean; count: number; error?: string } => {
+    try {
+      const currentBase = DBService.getBase();
+      const existingCpfs = new Set(currentBase.map(u => u.cpf));
+
+      let addedCount = 0;
+      const newEntries: BaseAutorizada[] = [];
+
+      newCpfs.forEach(rawCpf => {
+        let cleanCpf = rawCpf.replace(/\D/g, '');
+
+        if (cleanCpf.length > 0 && cleanCpf.length < 11) {
+          cleanCpf = cleanCpf.padStart(11, '0');
         }
 
-        const newRecord: CadastroEnviado = {
-          ...data,
-          id: enviados.length + 1,
-          data_envio: new Date().toISOString(),
-          status: 'CONCLUÍDO'
-        };
+        if (cleanCpf.length === 11 && !existingCpfs.has(cleanCpf)) {
+          newEntries.push({
+            cpf: cleanCpf,
+            nome: `AUTORIZADO - ${cleanCpf.substring(0, 3)}.***.${cleanCpf.substring(9)}`,
+            estado: 'SP',
+            turma_cesd: '2024/2',
+            rg: 'N/A',
+            cadastro_realizado: false
+          });
+          existingCpfs.add(cleanCpf);
+          addedCount++;
+        }
+      });
 
-        const updatedBase = base.map(u => u.cpf === data.cpf ? { ...u, cadastro_realizado: true } : u);
-        const updatedEnviados = [...enviados, newRecord];
-
+      if (addedCount > 0) {
+        const updatedBase = [...currentBase, ...newEntries];
         localStorage.setItem('base_autorizada', JSON.stringify(updatedBase));
-        localStorage.setItem('cadastros_enviados', JSON.stringify(updatedEnviados));
+      }
 
-        return { success: true };
-      },
+      return { success: true, count: addedCount };
+    } catch (e) {
+      return { success: false, count: 0, error: 'Erro ao atualizar base de dados.' };
+    }
+  },
 
-        updateAuthorizedBase: (newCpfs: string[]): { success: boolean; count: number; error?: string } => {
-          try {
-            const currentBase = DBService.getBase();
-            const existingCpfs = new Set(currentBase.map(u => u.cpf));
-
-            let addedCount = 0;
-            const newEntries: BaseAutorizada[] = [];
-
-            newCpfs.forEach(rawCpf => {
-              let cleanCpf = rawCpf.replace(/\D/g, '');
-
-              if (cleanCpf.length > 0 && cleanCpf.length < 11) {
-                cleanCpf = cleanCpf.padStart(11, '0');
-              }
-
-              if (cleanCpf.length === 11 && !existingCpfs.has(cleanCpf)) {
-                newEntries.push({
-                  cpf: cleanCpf,
-                  nome: `AUTORIZADO - ${cleanCpf.substring(0, 3)}.***.${cleanCpf.substring(9)}`,
-                  estado: 'SP',
-                  turma_cesd: '2024/2',
-                  rg: 'N/A',
-                  cadastro_realizado: false
-                });
-                existingCpfs.add(cleanCpf);
-                addedCount++;
-              }
-            });
-
-            if (addedCount > 0) {
-              const updatedBase = [...currentBase, ...newEntries];
-              localStorage.setItem('base_autorizada', JSON.stringify(updatedBase));
-            }
-
-            return { success: true, count: addedCount };
-          } catch (e) {
-            return { success: false, count: 0, error: 'Erro ao atualizar base de dados.' };
-          }
-        },
-
-          resetData: () => {
-            localStorage.removeItem('base_autorizada');
-            localStorage.removeItem('cadastros_enviados');
-            DBService.init();
-            window.location.reload();
-          }
+  resetData: () => {
+    localStorage.removeItem('base_autorizada');
+    localStorage.removeItem('cadastros_enviados');
+    DBService.init();
+    window.location.reload();
+  }
 };
