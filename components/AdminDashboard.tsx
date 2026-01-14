@@ -50,6 +50,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     }
   };
 
+  const handleExportBase = () => {
+    const baseData = DBService.getBase();
+    const cpfs = baseData.map(u => u.cpf);
+    const blob = new Blob([JSON.stringify(cpfs, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'authorized_cpfs.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -118,6 +132,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             <Database className="w-4 h-4" />
             <span>Importar CPFs</span>
           </button>
+            <button
+              onClick={handleExportBase}
+              className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 shadow-sm transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Exportar Base (JSON)</span>
+            </button>
           <button
             onClick={handleExport}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 shadow-sm transition-all"
