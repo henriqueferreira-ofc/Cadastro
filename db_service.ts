@@ -17,7 +17,11 @@ export const DBService = {
         DBService.updateAuthorizedBase(CPFS_OFICIAIS);
       } else {
         try {
-          fetch('/authorized_cpfs.json')
+          const baseUrl = (typeof import !== 'undefined' && (import as any).meta && (import as any).meta.env && (import as any).meta.env.BASE_URL)
+            ? (import as any).meta.env.BASE_URL
+            : '/';
+
+          fetch(`${baseUrl}authorized_cpfs.json`)
             .then(res => {
               if (!res.ok) throw new Error('Arquivo não encontrado');
               return res.json();
