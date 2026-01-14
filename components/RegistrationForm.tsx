@@ -12,16 +12,35 @@ interface RegistrationFormProps {
 }
 
 const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, onCancel }) => {
-  const [formData, setFormData] = useState({
-    nome: '',
-    estado: '',
-    turma_cesd: '',
-    rg: '',
-    email: '',
-    telefone: '',
-    endereco: '',
-    cep: '',
-    certidao_obito: ''
+  const [formData, setFormData] = useState(() => {
+    const enviados = DBService.getEnviados();
+    const existing = enviados.find(e => e.cpf === user.cpf);
+
+    if (existing) {
+      return {
+        nome: existing.nome,
+        estado: existing.estado,
+        turma_cesd: existing.turma_cesd,
+        rg: existing.rg,
+        email: existing.email,
+        telefone: formatPhone(existing.telefone),
+        endereco: existing.endereco,
+        cep: formatCEP(existing.cep),
+        certidao_obito: existing.certidao_obito || ''
+      };
+    }
+
+    return {
+      nome: user.nome.includes('AUTORIZADO') ? '' : user.nome,
+      estado: user.estado === 'SP' ? '' : user.estado, // Reset SP default if it's just a placeholder
+      turma_cesd: user.turma_cesd === '2024/2' ? '' : user.turma_cesd, // Reset placeholder
+      rg: user.rg === 'N/A' ? '' : user.rg,
+      email: '',
+      telefone: '',
+      endereco: '',
+      cep: '',
+      certidao_obito: user.certidao_obito || ''
+    };
   });
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);

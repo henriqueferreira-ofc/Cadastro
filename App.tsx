@@ -17,6 +17,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     DBService.init();
+    DBService.loadAuthorizedCPFs();
   }, []);
 
   const handleLoginSuccess = (user: BaseAutorizada) => {
