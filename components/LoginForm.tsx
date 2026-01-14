@@ -17,21 +17,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     const cleanCpf = cpf.replace(/\D/g, '');
-    
+
     if (!validateCPF(cleanCpf)) {
       setError('Por favor, informe um CPF válido.');
       return;
     }
 
     setLoading(true);
-    
+
     // Simulate API call
     setTimeout(() => {
       const result = DBService.checkCPF(cleanCpf);
       setLoading(false);
-      
+
       if (result.success && result.data) {
         onSuccess(result.data);
       } else {
@@ -44,7 +44,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     <div className="bg-white rounded-2xl shadow-xl overflow-hidden animate-in fade-in duration-500">
       <div className="p-8 sm:p-12">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">Bem-vindo ao Portal</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Portal de Atualização v1.2</h2>
           <p className="text-gray-500 mt-2">Informe seu CPF para iniciar a atualização cadastral</p>
         </div>
 
