@@ -1,6 +1,5 @@
 
 import { BaseAutorizada, CadastroEnviado } from './types';
-
 import { CPFS_OFICIAIS } from './authorized_cpfs';
 
 const INITIAL_BASE: BaseAutorizada[] = [];
@@ -9,8 +8,9 @@ export const DBService = {
   init: () => {
     const currentBase = DBService.getBase();
 
-    // Se a base está vazia, tentamos popular
+    // Tentativa de carregar/sincronizar se a base estiver vazia ou para garantir atualização inicial
     if (currentBase.length === 0) {
+      console.log('Iniciando sincronização da base de CPFs...');
       const baseUrl = (typeof import !== 'undefined' && (import as any).meta && (import as any).meta.env && (import as any).meta.env.BASE_URL)
         ? (import as any).meta.env.BASE_URL
         : './';
@@ -22,17 +22,22 @@ fetch(`${baseUrl}ENVIAR.csv`)
     return res.text();
   })
   .then(csvText => {
-    const lines = csvText.split('\n');
+    const lines = csvText.split(/\r?\n/);
     const cpfs: string[] = [];
     lines.forEach(line => {
-      const clean = line.replace(/\D/g, '');
+      const clean = line.trim().replace(/\D/g, '');
       if (clean.length === 11) cpfs.push(clean);
     });
+
     if (cpfs.length > 0) {
+      console.log(`${cpfs.length} CPFs encontrados no CSV. Atualizando base...`);
       DBService.updateAuthorizedBase(cpfs);
+    } else {
+      console.warn('CSV lido mas nenhum CPF válido (11 dígitos) foi encontrado.');
     }
   })
-  .catch(() => {
+  .catch((err) => {
+    console.error('Erro ao ler ENVIAR.csv:', err.message);
     // 2. Fallback: Tentar carregar do authorized_cpfs.json
     fetch(`${baseUrl}authorized_cpfs.json`)
       .then(res => {
@@ -41,12 +46,14 @@ fetch(`${baseUrl}ENVIAR.csv`)
       })
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
+          console.log('Carregando CPFs via fallback JSON...');
           DBService.updateAuthorizedBase(data.map(String));
         }
       })
       .catch(() => {
-        // 3. Fallback final: Usar CPFS_OFICIAIS se existirem (embutidos no bundle)
+        // 3. Fallback final: Usar CPFS_OFICIAIS se existirem
         if (Array.isArray(CPFS_OFICIAIS) && CPFS_OFICIAIS.length > 0) {
+          console.log('Carregando CPFs via fallback embutido...');
           DBService.updateAuthorizedBase(CPFS_OFICIAIS);
         }
       });
@@ -59,11 +66,19 @@ if (!localStorage.getItem('cadastros_enviados')) {
   },
 
 getBase: (): BaseAutorizada[] => {
-  return JSON.parse(localStorage.getItem('base_autorizada') || '[]');
+  try {
+    return JSON.parse(localStorage.getItem('base_autorizada') || '[]');
+  } catch (e) {
+    return [];
+  }
 },
 
   getEnviados: (): CadastroEnviado[] => {
-    return JSON.parse(localStorage.getItem('cadastros_enviados') || '[]');
+    try {
+      return JSON.parse(localStorage.getItem('cadastros_enviados') || '[]');
+    } catch (e) {
+      return [];
+    }
   },
 
     checkCPF: (cpf: string): { success: boolean; data?: BaseAutorizada; error?: string } => {
@@ -116,7 +131,6 @@ getBase: (): BaseAutorizada[] => {
             newCpfs.forEach(rawCpf => {
               let cleanCpf = rawCpf.replace(/\D/g, '');
 
-              // Fix: Pad with leading zeros if length is less than 11 (common Excel issue)
               if (cleanCpf.length > 0 && cleanCpf.length < 11) {
                 cleanCpf = cleanCpf.padStart(11, '0');
               }
@@ -124,8 +138,8 @@ getBase: (): BaseAutorizada[] => {
               if (cleanCpf.length === 11 && !existingCpfs.has(cleanCpf)) {
                 newEntries.push({
                   cpf: cleanCpf,
-                  nome: `AUTORIZADO - ${cleanCpf.substring(0, 3)}.***.${cleanCpf.substring(9)}`, // Placeholder name since we only have CPF
-                  estado: 'SP', // Default assignment, can be edited later if needed
+                  nome: `AUTORIZADO - ${cleanCpf.substring(0, 3)}.***.${cleanCpf.substring(9)}`,
+                  estado: 'SP',
                   turma_cesd: '2024/2',
                   rg: 'N/A',
                   cadastro_realizado: false
@@ -135,12 +149,10 @@ getBase: (): BaseAutorizada[] => {
               }
             });
 
-            if (addedCount === 0) {
-              return { success: true, count: 0, error: 'Nenhum CPF novo foi adicionado. Todos já existiam ou eram inválidos.' };
+            if (addedCount > 0) {
+              const updatedBase = [...currentBase, ...newEntries];
+              localStorage.setItem('base_autorizada', JSON.stringify(updatedBase));
             }
-
-            const updatedBase = [...currentBase, ...newEntries];
-            localStorage.setItem('base_autorizada', JSON.stringify(updatedBase));
 
             return { success: true, count: addedCount };
           } catch (e) {
