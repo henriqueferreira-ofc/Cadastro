@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import logo from './logo.png';
 import { BaseAutorizada, ViewState } from './types';
 import { DBService } from './db_service';
 import LoginForm from './components/LoginForm';
@@ -39,7 +40,7 @@ const App: React.FC = () => {
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={resetFlow}>
             <div className="bg-white rounded-full p-1 shadow-sm">
-              <img src="/Cadastro/logo.png" alt="Logo AAFAB" className="h-12 w-auto" />
+              <img src={logo} alt="Logo AAFAB" className="h-12 w-auto" />
             </div>
             <h1 className="text-[10px] sm:text-xs md:text-sm font-bold tracking-tight">Portal de Atualização Cadastral - AAFAB (Associação Amigos da Força Aérea Brasileira)</h1>
           </div>
