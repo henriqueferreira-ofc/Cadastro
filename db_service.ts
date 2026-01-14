@@ -9,6 +9,31 @@ export const DBService = {
   init: () => {
     if (!localStorage.getItem('base_autorizada')) {
       localStorage.setItem('base_autorizada', JSON.stringify(INITIAL_BASE));
+
+      // Tentativa automática de popular a base autorizada:
+      // 1) Se o arquivo `authorized_cpfs.ts` exportar CPFs (embutido), usa ele;
+      // 2) Caso contrário tenta buscar um arquivo estático em `/authorized_cpfs.json` (public).
+      if (Array.isArray(CPFS_OFICIAIS) && CPFS_OFICIAIS.length > 0) {
+        DBService.updateAuthorizedBase(CPFS_OFICIAIS);
+      } else {
+        try {
+          fetch('/authorized_cpfs.json')
+            .then(res => {
+              if (!res.ok) throw new Error('Arquivo não encontrado');
+              return res.json();
+            })
+            .then((data) => {
+              if (Array.isArray(data) && data.length > 0) {
+                DBService.updateAuthorizedBase(data.map(String));
+              }
+            })
+            .catch(() => {
+              // silencioso — se não existir, seguimos com a base vazia
+            });
+        } catch (e) {
+          // ignore
+        }
+      }
     }
     if (!localStorage.getItem('cadastros_enviados')) {
       localStorage.setItem('cadastros_enviados', JSON.stringify([]));
