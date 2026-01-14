@@ -120,13 +120,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   return (
     <div className="animate-in fade-in duration-500 relative">
       <div className="flex justify-between items-center mb-6">
-        <button
-          onClick={onBack}
-          className="flex items-center space-x-2 text-gray-500 hover:text-gray-800 transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5" />
-          <span className="font-medium">Voltar ao Início</span>
-        </button>
+        <div className="flex flex-col">
+          <button
+            onClick={onBack}
+            className="flex items-center space-x-2 text-gray-500 hover:text-gray-800 transition-colors mb-1"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            <span className="font-medium">Voltar ao Início</span>
+          </button>
+          <div className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-1 rounded border border-red-100 uppercase tracking-widest">
+            Painel Administrativo v1.3 - Base Estática Ativa
+          </div>
+        </div>
         <div className="flex space-x-3">
           <button
             onClick={() => setShowImportModal(true)}
