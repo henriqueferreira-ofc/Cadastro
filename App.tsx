@@ -85,7 +85,7 @@ const App: React.FC = () => {
       <footer className="bg-white border-t border-gray-200 py-4 text-center text-[10px] sm:text-xs text-gray-400">
         <div className="max-w-4xl mx-auto px-4">
           <p>&copy; 2026 Portal Corporativo de Atualização Cadastral. AAFAB - Associação Amigos da Força Áerea Brasileira. Em conformidade com a LGPD.</p>
-          <p className="mt-1">Acesso restrito e monitorado.</p>
+          <p className="mt-1">Acesso restrito e monitorado. <span className="opacity-50">v1.2</span></p>
         </div>
       </footer>
     </div>
