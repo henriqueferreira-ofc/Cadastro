@@ -5,6 +5,7 @@ export interface BaseAutorizada {
   estado: string;
   turma_cesd: string;
   rg: string;
+  certidao_obito?: string;
   cadastro_realizado: boolean;
 }
 
@@ -14,6 +15,7 @@ export interface CadastroEnviado {
   estado: string;
   turma_cesd: string;
   rg: string;
+  certidao_obito?: string;
   cpf: string;
   email: string;
   telefone: string;

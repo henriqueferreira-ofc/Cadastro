@@ -20,7 +20,8 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     email: '',
     telefone: '',
     endereco: '',
-    cep: ''
+    cep: '',
+    certidao_obito: ''
   });
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -157,6 +158,19 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
                   onChange={handleInputChange}
                 />
               </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label htmlFor="certidao_obito" className="block text-sm font-semibold text-gray-700 mb-1">Número de Certidão de Óbito</label>
+              <input
+                type="text"
+                id="certidao_obito"
+                name="certidao_obito"
+                className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all"
+                placeholder="Digite o número da certidão (se aplicável)"
+                value={formData.certidao_obito}
+                onChange={handleInputChange}
+              />
             </div>
           </div>
         </div>
