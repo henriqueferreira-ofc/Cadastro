@@ -9,19 +9,25 @@
 Publicação automática para GitHub Pages via workflow `.github/workflows/gh-pages.yml`.
 
 
-# Run and deploy your AI Studio app
+# Cadastro
 
-This contains everything you need to run your app locally.
+Este repositório contém a aplicação de cadastro.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1oEV6PD0WJ-k3rhPoC2ecPX7I18oDlGju
+## Como executar
 
-## Run Locally
+1. Clone o repositório.
+2. Navegue até a pasta do projeto.
+3. Execute `npm install` para instalar as dependências.
+4. Execute `npm run dev` para iniciar o servidor local.
 
-**Prerequisites:**  Node.js
+## Estrutura do projeto
 
+- `index.html`: O arquivo HTML principal.
+- `index.css`: O arquivo de estilos.
+- `src-image-declarations.d.ts`: Declarações de tipos para imagens.
+- `components/`: Contém os componentes React.
+- `public/`: Contém arquivos públicos como JSON e CSV.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Contribuição
+
+Sinta-se à vontade para contribuir com melhorias!
