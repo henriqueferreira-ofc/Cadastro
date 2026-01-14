@@ -281,7 +281,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
           <button
             type="submit"
             disabled={loading}
-            className="flex-grow bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-lg shadow-md transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+            className="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg shadow-md transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
           >
             {loading ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <span>Finalizar e Enviar Cadastro</span>}
           </button>
