@@ -37,17 +37,17 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-blue-900 text-white p-3 sm:p-4 shadow-md sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto flex justify-between items-center gap-2">
-          <div className="flex items-center gap-2 sm:gap-3 cursor-pointer flex-1 min-w-0" onClick={resetFlow}>
-            <div className="bg-white rounded-full p-1 shadow-sm flex-shrink-0">
-              <img src={logo} alt="Logo AAFAB" className="h-10 sm:h-12 w-auto" />
+      <header className="bg-blue-900 text-white p-2 sm:p-3 shadow-md sticky top-0 z-50">
+        <div className="max-w-3xl mx-auto flex justify-between items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-2.5 cursor-pointer" onClick={resetFlow}>
+            <div className="bg-white rounded-full p-0.5 shadow-sm flex-shrink-0">
+              <img src={logo} alt="Logo AAFAB" className="h-8 sm:h-9 w-auto" />
             </div>
-            <h1 className="text-[10px] sm:text-xs md:text-sm font-bold tracking-tight leading-tight">Portal de Atualização Cadastral - AAFAB</h1>
+            <h1 className="text-[9px] sm:text-[10px] md:text-xs font-bold tracking-tight leading-tight">Portal de Atualização Cadastral - AAFAB</h1>
           </div>
           <button
             onClick={() => setShowAdminAuth(true)}
-            className="text-blue-200 hover:text-white transition-colors flex items-center gap-1 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap"
+            className="text-blue-200 hover:text-white transition-colors flex items-center gap-1 text-[10px] sm:text-xs font-medium flex-shrink-0 whitespace-nowrap"
           >
             <UserCog className="w-4 h-4" />
             <span className="hidden sm:inline">Painel Admin</span>
@@ -57,7 +57,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow py-6 sm:py-8 px-3 sm:px-4">
+      <main className="flex-grow py-10 sm:py-12 px-3 sm:px-4">
         <div className="max-w-3xl mx-auto">
           {view === 'AUTH' && <LoginForm onSuccess={handleLoginSuccess} />}
           {view === 'FORM' && activeUser && (
