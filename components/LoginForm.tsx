@@ -44,7 +44,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     <div className="bg-white rounded-lg sm:rounded-2xl shadow-lg sm:shadow-xl overflow-hidden animate-in fade-in duration-500">
       <div className="p-4 sm:p-8 md:p-12">
         <div className="text-center mb-6 sm:mb-8">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Bem-vindo ao Portal</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Bem-vindo ao Portal da AAFAB</h2>
           <p className="text-sm sm:text-base text-gray-500 mt-2">Informe seu CPF para iniciar a atualização cadastral</p>
         </div>
 
