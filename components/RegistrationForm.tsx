@@ -177,6 +177,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
                   onChange={handleInputChange}
                 />
               </div>
+            </div>
 
             <div className="md:col-span-2">
               <label htmlFor="certidao_obito" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Número de Certidão de Óbito</label>
