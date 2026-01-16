@@ -3,9 +3,10 @@ import { BaseAutorizada, CadastroEnviado } from './types';
 import { CPFS_OFICIAIS } from './authorized_cpfs';
 
 
-let loadedCpfs: string[] = [];
-
 const BACKEND_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api';
+
+// Verificar se estamos em produção
+const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
 
 export const DBService = {
   init: () => {
@@ -82,27 +83,54 @@ export const DBService = {
 
   saveRegistration: async (data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>): Promise<{ success: boolean; error?: string }> => {
     try {
-      // NEW: Backend Call (prioridade máxima)
-      const result = await fetch(`${BACKEND_URL}/cadastro`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      // Tentar salvar no backend se disponível
+      if (!isProduction) {
+        try {
+          const result = await fetch(`${BACKEND_URL}/cadastro`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
 
-      if (!result.ok) {
-        const errorData = await result.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Erro na comunicação com o servidor.');
+          if (!result.ok) {
+            const errorData = await result.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Erro na comunicação com o servidor.');
+          }
+
+          const backendData = await result.json();
+
+          // Sincronizar com localStorage
+          const enviados = DBService.getEnviados();
+          const index = enviados.findIndex(e => e.cpf === data.cpf);
+          const record = {
+            ...backendData,
+            status: backendData.status || 'CONCLUÍDO',
+            data_envio: backendData.data_envio || new Date().toISOString()
+          };
+
+          let updatedEnviados;
+          if (index >= 0) {
+            updatedEnviados = [...enviados];
+            updatedEnviados[index] = { ...enviados[index], ...record };
+          } else {
+            updatedEnviados = [...enviados, { ...record, id: backendData.id || enviados.length + 1 }];
+          }
+          localStorage.setItem('cadastros_enviados', JSON.stringify(updatedEnviados));
+          return { success: true };
+        } catch (backendError) {
+          console.error('Backend não disponível em desenvolvimento:', backendError);
+        }
       }
 
-      const backendData = await result.json();
-
-      // Local backup DEPOIS que backend confirmar
+      // Fallback para produção ou quando backend não está disponível
+      // Salvar no localStorage
       const enviados = DBService.getEnviados();
       const index = enviados.findIndex(e => e.cpf === data.cpf);
       const record = {
-        ...backendData,
-        status: backendData.status || 'CONCLUÍDO',
-        data_envio: backendData.data_envio || new Date().toISOString()
+        ...data,
+        status: 'CONCLUÍDO',
+        data_envio: new Date().toISOString(),
+        id: index >= 0 ? enviados[index].id : enviados.length + 1
       };
 
       let updatedEnviados;
@@ -110,10 +138,11 @@ export const DBService = {
         updatedEnviados = [...enviados];
         updatedEnviados[index] = { ...enviados[index], ...record };
       } else {
-        updatedEnviados = [...enviados, { ...record, id: backendData.id || enviados.length + 1 }];
+        updatedEnviados = [...enviados, record];
       }
       localStorage.setItem('cadastros_enviados', JSON.stringify(updatedEnviados));
 
+      console.warn('⚠️ Cadastro salvo localmente. Backend não está acessível.');
       return { success: true };
     } catch (e: any) {
       console.error('Erro ao salvar:', e);
