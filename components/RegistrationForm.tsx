@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BaseAutorizada } from '../types';
 import { formatCEP, formatPhone } from '../utils';
 import { DBService } from '../db_service';
@@ -13,29 +13,10 @@ interface RegistrationFormProps {
 
 const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState(() => {
-    const enviados = DBService.getEnviados();
-    const existing = enviados.find(e => e.cpf === user.cpf);
-
-    if (existing) {
-      return {
-        nome: existing.nome,
-        estado: existing.estado,
-        turma_cesd: existing.turma_cesd,
-        rg: existing.rg,
-        email: existing.email,
-        telefone: formatPhone(existing.telefone),
-        endereco: existing.endereco,
-        bairro: existing.bairro || '',
-        cidade: existing.cidade || '',
-        cep: formatCEP(existing.cep),
-        certidao_obito: existing.certidao_obito || ''
-      };
-    }
-
     return {
       nome: user.nome.includes('AUTORIZADO') ? '' : user.nome,
-      estado: user.estado === 'SP' ? '' : user.estado, // Reset SP default if it's just a placeholder
-      turma_cesd: user.turma_cesd === '2024/2' ? '' : user.turma_cesd, // Reset placeholder
+      estado: user.estado === 'SP' ? '' : user.estado,
+      turma_cesd: user.turma_cesd === '2024/2' ? '' : user.turma_cesd,
       rg: user.rg === 'N/A' ? '' : user.rg,
       email: '',
       telefone: '',
@@ -49,6 +30,52 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Buscar dados do backend se já houver cadastro
+  useEffect(() => {
+    const loadExistingData = async () => {
+      // Primeiro tenta local
+      const enviados = DBService.getEnviados();
+      const existingLocal = enviados.find(e => e.cpf === user.cpf);
+
+      if (existingLocal) {
+        setFormData({
+          nome: existingLocal.nome,
+          estado: existingLocal.estado,
+          turma_cesd: existingLocal.turma_cesd,
+          rg: existingLocal.rg,
+          email: existingLocal.email,
+          telefone: formatPhone(existingLocal.telefone),
+          endereco: existingLocal.endereco,
+          bairro: existingLocal.bairro || '',
+          cidade: existingLocal.cidade || '',
+          cep: formatCEP(existingLocal.cep),
+          certidao_obito: existingLocal.certidao_obito || ''
+        });
+        return;
+      }
+
+      // Se não encontrou local, busca no backend
+      const backendData = await DBService.getCadastroFromBackend(user.cpf);
+      if (backendData) {
+        setFormData({
+          nome: backendData.nome,
+          estado: backendData.estado,
+          turma_cesd: backendData.turma_cesd,
+          rg: backendData.rg,
+          email: backendData.email,
+          telefone: formatPhone(backendData.telefone),
+          endereco: backendData.endereco,
+          bairro: backendData.bairro || '',
+          cidade: backendData.cidade || '',
+          cep: formatCEP(backendData.cep),
+          certidao_obito: backendData.certidao_obito || ''
+        });
+      }
+    };
+
+    loadExistingData();
+  }, [user.cpf]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

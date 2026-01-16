@@ -86,6 +86,30 @@ router.get('/admin/list', adminAuth, async (req, res) => {
     }
 });
 
+// Buscar cadastro por CPF (sem autenticação - apenas consulta pessoal)
+router.get('/consulta/:cpf', async (req: Request, res: Response) => {
+    try {
+        const { cpf } = req.params;
+        const cleanCpf = cpf.replace(/\D/g, '');
+
+        if (!cleanCpf || cleanCpf.length !== 11) {
+            return res.status(400).json({ error: 'CPF inválido.' });
+        }
+
+        const cadastro = await prisma.cadastro.findUnique({
+            where: { cpf: cleanCpf }
+        });
+
+        if (!cadastro) {
+            return res.status(404).json({ error: 'Cadastro não encontrado.' });
+        }
+
+        res.json(cadastro);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar cadastro.' });
+    }
+});
+
 // Exportar para Excel
 router.get('/admin/export', adminAuth, async (req, res) => {
     try {
