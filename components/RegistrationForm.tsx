@@ -278,7 +278,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
                 required
                 rows={3}
                 className="w-full px-3 sm:px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all resize-none text-sm"
-                placeholder="Rua, Número, Complemento, Bairro, Cidade..."
+                placeholder="Rua, Número e Complemento"
                 value={formData.endereco}
                 onChange={handleInputChange}
               ></textarea>
