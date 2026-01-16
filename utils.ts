@@ -57,6 +57,11 @@ export const getBackendUrl = (): string => {
     return `https://api.${root}/api`;
   }
 
+  // Heurística: se estiver em <domínio> (sem www), tente api.<domínio>
+  if (!host.startsWith('api.')) {
+    return `https://api.${host}/api`;
+  }
+
   // Fallback: mesma origem
   return `${window.location.origin}/api`;
 };
