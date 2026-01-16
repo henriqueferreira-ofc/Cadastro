@@ -57,8 +57,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   }, []);
 
   const handleExport = async () => {
+    const token = localStorage.getItem('admin_token');
+
+    // If using local token, use local export with xlsx
+    if (token === 'local_admin_access') {
+      if (enviados.length === 0) {
+        alert("Não há dados para exportar.");
+        return;
+      }
+
+      const exportData = enviados.map(e => ({
+        'CPF': e.cpf,
+        'Nome': e.nome,
+        'Email': e.email,
+        'Telefone': e.telefone,
+        'Estado': e.estado,
+        'Bairro': e.bairro,
+        'Cidade': e.cidade,
+        'Endereço': e.endereco,
+        'Turma': e.turma_cesd,
+        'Certidão de Óbito': e.certidao_obito || '',
+        'Data Envio': new Date(e.data_envio).toLocaleString('pt-BR')
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Cadastros Enviados");
+      XLSX.writeFile(workbook, `Relatorio_Cadastros_${new Date().toISOString().split('T')[0]}.xlsx`);
+      return;
+    }
+
+    // Backend export with JWT
     try {
-      const token = localStorage.getItem('admin_token');
       if (!token) {
         alert('Sessão expirada. Faça login novamente.');
         return;
