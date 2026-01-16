@@ -45,13 +45,18 @@ export const getBackendUrl = (): string => {
 
   if (isLocalhost) return 'http://localhost:3001/api';
 
+  // Fallback específico do domínio (caso a build não receba VITE_API_URL)
+  const host = window.location.hostname;
+  if (host === 'aafab.com.br' || host === 'www.aafab.com.br') {
+    return 'https://aafab-backend.onrender.com/api';
+  }
+
   const envUrl = (import.meta as any).env?.VITE_API_URL as string | undefined;
   if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
     return envUrl;
   }
 
   // Heurística: se o site estiver em www.<domínio>, tente api.<domínio>
-  const host = window.location.hostname;
   if (host.startsWith('www.')) {
     const root = host.substring(4);
     return `https://api.${root}/api`;
