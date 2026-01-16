@@ -14,6 +14,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [enviados, setEnviados] = useState<CadastroEnviado[]>([]);
   const [tab, setTab] = useState<'ENVIADOS' | 'BASE'>('ENVIADOS');
 
+  // Função auxiliar para obter URL do backend
+  const getBackendUrl = (): string => {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (isLocalhost) {
+      return 'http://localhost:3001/api';
+    }
+    
+    // Em produção, usar a URL do backend configurada
+    const envUrl = (import.meta as any).env.VITE_API_URL;
+    if (envUrl) {
+      return envUrl;
+    }
+    
+    // Fallback: tentar usar a mesma origem
+    return `${window.location.origin}/api`;
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -27,9 +45,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           return;
         }
 
-        // Tentar buscar do backend em desenvolvimento
+        // Construir URL do backend baseado no ambiente
+        const backendUrl = getBackendUrl();
+        
+        // Tentar buscar do backend (desenvolvimento ou produção)
         try {
-          const response = await fetch('http://localhost:3001/api/cadastro/admin/list', {
+          const response = await fetch(`${backendUrl}/cadastro/admin/list`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           
@@ -38,15 +59,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             setEnviados(data);
             // Sincronizar resposta para localStorage
             localStorage.setItem('cadastros_enviados', JSON.stringify(data));
+            console.log('✅ Dados carregados do banco de dados');
             return;
+          } else {
+            console.warn('Resposta do backend não OK:', response.status);
           }
         } catch (backendError) {
-          console.log('Backend não disponível (esperado em produção)');
+          console.warn('⚠️ Backend não disponível. Usando localStorage...', backendError);
         }
 
-        // Sempre usar localStorage como fonte principal em produção
+        // Fallback: usar localStorage se backend falhar
         const localData = DBService.getEnviados();
         setEnviados(localData);
+        console.log('📦 Usando dados do localStorage como fallback');
       } catch (error) {
         console.error('Erro ao carregar dados do admin:', error);
         const localData = DBService.getEnviados();
@@ -94,7 +119,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:3001/api/cadastro/admin/export', {
+      const backendUrl = getBackendUrl();
+      const response = await fetch(`${backendUrl}/cadastro/admin/export`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Falha ao exportar.');
