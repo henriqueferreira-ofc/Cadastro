@@ -2,11 +2,11 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-[![Deploy Status](https://github.com/henriqueferreira-ofc/Cadastro/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/henriqueferreira-ofc/Cadastro/actions/workflows/gh-pages.yml)
+[![Deploy Status](https://github.com/henriqueferreira-ofc/Cadastro/actions/workflows/deploy.yml/badge.svg)](https://github.com/henriqueferreira-ofc/Cadastro/actions/workflows/deploy.yml)
 
 # Status do Deploy
 
-Publicação automática para GitHub Pages via workflow `.github/workflows/gh-pages.yml`.
+Publicação automática para GitHub Pages via workflow `.github/workflows/deploy.yml`.
 
 
 # Cadastro

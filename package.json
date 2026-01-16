@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "publish": "git add . && git commit -m 'update' && git push"
   },
   "dependencies": {
     "lucide-react": "^0.562.0",
