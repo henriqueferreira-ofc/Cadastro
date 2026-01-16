@@ -29,13 +29,19 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
 
     // Simulate API call
     setTimeout(() => {
-      const result = DBService.checkCPF(cleanCpf);
-      setLoading(false);
+      try {
+        const result = DBService.checkCPF(cleanCpf);
 
-      if (result.success && result.data) {
-        onSuccess(result.data);
-      } else {
-        setError(result.error || 'Erro inesperado.');
+        if (result.success && result.data) {
+          onSuccess(result.data);
+        } else {
+          setError(result.error || 'Erro inesperado.');
+        }
+      } catch (err) {
+        console.error('Erro ao validar CPF:', err);
+        setError('Erro interno ao validar CPF. Recarregue a página e tente novamente.');
+      } finally {
+        setLoading(false);
       }
     }, 600);
   };

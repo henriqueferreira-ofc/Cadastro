@@ -3,6 +3,9 @@ import { BaseAutorizada, CadastroEnviado } from './types';
 import { CPFS_OFICIAIS } from './authorized_cpfs';
 
 
+let loadedCpfs: string[] = [];
+
+
 const BACKEND_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api';
 
 // Verificar se estamos em produção
@@ -17,9 +20,10 @@ export const DBService = {
 
   loadAuthorizedCPFs: async (): Promise<boolean> => {
     try {
-      const response = await fetch('./authorized_cpfs.json');
+      const response = await fetch('/authorized_cpfs.json');
       if (!response.ok) throw new Error('Falha ao carregar base de CPFs');
-      loadedCpfs = await response.json();
+      const data = await response.json();
+      loadedCpfs = Array.isArray(data) ? data : [];
       return true;
     } catch (error) {
       console.error('Erro ao carregar CPFs:', error);
