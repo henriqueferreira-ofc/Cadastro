@@ -13,6 +13,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [base, setBase] = useState<BaseAutorizada[]>([]);
   const [enviados, setEnviados] = useState<CadastroEnviado[]>([]);
   const [tab, setTab] = useState<'ENVIADOS' | 'BASE'>('ENVIADOS');
+  const [usingDatabase, setUsingDatabase] = useState(false);
 
   // Função auxiliar para obter URL do backend
   const getBackendUrl = (): string => {
@@ -50,19 +51,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         
         // Tentar buscar do backend (desenvolvimento ou produção)
         try {
-          const response = await fetch(`${backendUrl}/cadastro/admin/list`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            setEnviados(data);
-            // Sincronizar resposta para localStorage
-            localStorage.setItem('cadastros_enviados', JSON.stringify(data));
-            console.log('✅ Dados carregados do banco de dados');
-            return;
+          // Se o token for local_admin_access, não adianta tentar o backend se ele exigir JWT
+          if (token === 'local_admin_access') {
+            console.log('🗝️ Usando acesso local (sem JWT)');
           } else {
-            console.warn('Resposta do backend não OK:', response.status);
+            const response = await fetch(`${backendUrl}/cadastro/admin/list`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              setEnviados(data);
+              setUsingDatabase(true);
+              // Sincronizar resposta para localStorage
+              localStorage.setItem('cadastros_enviados', JSON.stringify(data));
+              console.log('✅ Dados carregados do banco de dados');
+              return;
+            } else {
+              console.warn('Resposta do backend não OK:', response.status);
+            }
           }
         } catch (backendError) {
           console.warn('⚠️ Backend não disponível. Usando localStorage...', backendError);
@@ -71,6 +78,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         // Fallback: usar localStorage se backend falhar
         const localData = DBService.getEnviados();
         setEnviados(localData);
+        setUsingDatabase(false);
         console.log('📦 Usando dados do localStorage como fallback');
       } catch (error) {
         console.error('Erro ao carregar dados do admin:', error);
@@ -219,8 +227,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             <ChevronLeft className="w-5 h-5" />
             <span className="font-medium">Voltar ao Início</span>
           </button>
-          <div className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-1 rounded border border-red-100 uppercase tracking-widest">
-            Painel Administrativo v1.3 - Base Estática Ativa
+          <div className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-widest ${
+            usingDatabase 
+              ? 'text-green-600 bg-green-50 border-green-100' 
+              : 'text-red-500 bg-red-50 border-red-100'
+          }`}>
+            Painel Administrativo v1.4 - {usingDatabase ? '📡 Banco Neon (Conectado)' : '📦 Base Local (Offline/Estática)'}
           </div>
         </div>
         <div className="flex space-x-3">
