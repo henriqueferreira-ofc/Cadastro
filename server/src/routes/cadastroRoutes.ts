@@ -2,17 +2,27 @@ import { Router, Request, Response } from 'express';
 import prisma from '../db';
 import ExcelJS from 'exceljs';
 import { auditLog } from '../utils/logger';
+import { verifyToken } from '../utils/jwt';
+import { validateCPF } from '../utils/cpfValidator';
 
 const router = Router();
 
-// Middleware para autorização administrativa simples
+// Middleware para autorização administrativa com JWT
 const adminAuth = (req: Request, res: Response, next: () => void) => {
-    const token = req.headers['authorization'];
-    if (token === process.env.ADMIN_TOKEN) {
-        next();
-    } else {
-        res.status(401).json({ error: 'Não autorizado.' });
+    const authHeader = req.headers['authorization'];
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Token não fornecido.' });
     }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+
+    if (!decoded || decoded.role !== 'admin') {
+        return res.status(401).json({ error: 'Token inválido ou expirado.' });
+    }
+
+    next();
 };
 
 // Função para limpar dados e manter apenas o que o Prisma espera
@@ -35,6 +45,11 @@ router.post('/', async (req, res) => {
 
         if (!data.cpf) {
             return res.status(400).json({ error: 'CPF é obrigatório.' });
+        }
+
+        // Backend CPF validation
+        if (!validateCPF(data.cpf)) {
+            return res.status(400).json({ error: 'CPF inválido.' });
         }
 
         // Upsert logic to guarantee uniqueness by CPF
