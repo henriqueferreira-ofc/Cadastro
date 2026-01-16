@@ -1,0 +1,14 @@
+name: Cadastro API
+runtime: node
+buildCommand: cd server && npm install && npm run build
+startCommand: cd server && npm start
+envVars:
+  - key: DATABASE_URL
+    scope: BUILD,RUN
+  - key: ADMIN_PASSWORD
+    scope: RUN
+  - key: JWT_SECRET
+    scope: RUN
+  - key: PORT
+    value: 3001
+    scope: RUN
