@@ -257,7 +257,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
                 onChange={handleInputChange}
               />
             </div>
-            <div className="md:col-span-2">
+            <div>
               <label htmlFor="cidade" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Cidade *</label>
               <input
                 type="text"
