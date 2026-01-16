@@ -25,6 +25,8 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
         email: existing.email,
         telefone: formatPhone(existing.telefone),
         endereco: existing.endereco,
+        bairro: existing.bairro || '',
+        cidade: existing.cidade || '',
         cep: formatCEP(existing.cep),
         certidao_obito: existing.certidao_obito || ''
       };
@@ -38,6 +40,8 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
       email: '',
       telefone: '',
       endereco: '',
+      bairro: '',
+      cidade: '',
       cep: '',
       certidao_obito: user.certidao_obito || ''
     };
@@ -237,6 +241,32 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
                 className="w-full px-3 sm:px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-sm"
                 placeholder="00000-000"
                 value={formData.cep}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <label htmlFor="bairro" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Bairro *</label>
+              <input
+                type="text"
+                id="bairro"
+                name="bairro"
+                required
+                className="w-full px-3 sm:px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-sm"
+                placeholder="Seu Bairro"
+                value={formData.bairro}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label htmlFor="cidade" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Cidade *</label>
+              <input
+                type="text"
+                id="cidade"
+                name="cidade"
+                required
+                className="w-full px-3 sm:px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-sm"
+                placeholder="Sua Cidade"
+                value={formData.cidade}
                 onChange={handleInputChange}
               />
             </div>

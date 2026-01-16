@@ -20,6 +20,8 @@ export interface CadastroEnviado {
   email: string;
   telefone: string;
   endereco: string;
+  bairro: string;
+  cidade: string;
   cep: string;
   data_envio: string;
   status: string;
