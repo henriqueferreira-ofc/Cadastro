@@ -10,11 +10,17 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
+    const getBackendUrl = (): string => {
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (isLocalhost) return 'http://localhost:3001/api';
+        return (import.meta as any).env.VITE_API_URL || `${window.location.origin}/api`;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
 
-        const backendUrl = (import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api';
+        const backendUrl = getBackendUrl();
 
         try {
             // Tentar sempre o backend primeiro para obter o token real (JWT)
@@ -35,6 +41,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
             }
         } catch (err) {
             console.log('Backend indisponível para login, tentando acesso local...');
+            setError('Servidor indisponível. Inicie o backend para ver os dados do banco (ex: npm run dev:all).');
         }
 
         // Se o backend falhar ou der erro, mas a senha for a correta fixada
