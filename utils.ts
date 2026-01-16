@@ -37,3 +37,26 @@ export const formatPhone = (v: string) => {
   if (v.length > 11) v = v.slice(0, 11);
   return v.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
 };
+
+export const getBackendUrl = (): string => {
+  const isLocalhost =
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1';
+
+  if (isLocalhost) return 'http://localhost:3001/api';
+
+  const envUrl = (import.meta as any).env?.VITE_API_URL as string | undefined;
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl;
+  }
+
+  // Heurística: se o site estiver em www.<domínio>, tente api.<domínio>
+  const host = window.location.hostname;
+  if (host.startsWith('www.')) {
+    const root = host.substring(4);
+    return `https://api.${root}/api`;
+  }
+
+  // Fallback: mesma origem
+  return `${window.location.origin}/api`;
+};

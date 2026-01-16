@@ -4,6 +4,7 @@ import { DBService } from '../db_service';
 import { BaseAutorizada, CadastroEnviado } from '../types';
 import { ChevronLeft, Download, Trash2, Database, Table, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { getBackendUrl } from '../utils';
 
 interface AdminDashboardProps {
   onBack: () => void;
@@ -15,23 +16,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [tab, setTab] = useState<'ENVIADOS' | 'BASE'>('ENVIADOS');
   const [usingDatabase, setUsingDatabase] = useState(false);
 
-  // Função auxiliar para obter URL do backend
-  const getBackendUrl = (): string => {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    
-    if (isLocalhost) {
-      return 'http://localhost:3001/api';
-    }
-    
-    // Em produção, usar a URL do backend configurada
-    const envUrl = (import.meta as any).env.VITE_API_URL;
-    if (envUrl) {
-      return envUrl;
-    }
-    
-    // Fallback: tentar usar a mesma origem
-    return `${window.location.origin}/api`;
-  };
+  const backendUrl = getBackendUrl();
 
   useEffect(() => {
     const loadData = async () => {
@@ -46,8 +31,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           return;
         }
 
-        // Construir URL do backend baseado no ambiente
-        const backendUrl = getBackendUrl();
+        // URL do backend baseado no ambiente
         
         // Tentar buscar do backend (desenvolvimento ou produção)
         try {

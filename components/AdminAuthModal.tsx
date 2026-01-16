@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, X, ChevronRight } from 'lucide-react';
+import { getBackendUrl } from '../utils';
 
 interface AdminAuthModalProps {
     onSuccess: () => void;
@@ -10,17 +11,11 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
-    const getBackendUrl = (): string => {
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        if (isLocalhost) return 'http://localhost:3001/api';
-        return (import.meta as any).env.VITE_API_URL || `${window.location.origin}/api`;
-    };
+    const backendUrl = getBackendUrl();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-
-        const backendUrl = getBackendUrl();
 
         try {
             // Tentar sempre o backend primeiro para obter o token real (JWT)
@@ -61,6 +56,8 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden relative animate-in zoom-in-95 duration-300">
                 <button
                     onClick={onClose}
+                    aria-label="Fechar"
+                    title="Fechar"
                     className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                     <X className="w-5 h-5" />
