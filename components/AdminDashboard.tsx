@@ -27,7 +27,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           return;
         }
 
-        // Always fetch from backend with JWT - EVEN on mobile
+        // Tentar buscar do backend em desenvolvimento
         try {
           const response = await fetch('http://localhost:3001/api/cadastro/admin/list', {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -36,20 +36,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           if (response.ok) {
             const data = await response.json();
             setEnviados(data);
-            // Also sync to localStorage for offline access
+            // Sincronizar resposta para localStorage
             localStorage.setItem('cadastros_enviados', JSON.stringify(data));
             return;
           }
         } catch (backendError) {
-          console.error('Erro ao conectar ao backend:', backendError);
+          console.log('Backend não disponível (esperado em produção)');
         }
 
-        // Fallback to localStorage if backend fails
+        // Sempre usar localStorage como fonte principal em produção
         const localData = DBService.getEnviados();
         setEnviados(localData);
       } catch (error) {
         console.error('Erro ao carregar dados do admin:', error);
-        // Final fallback to localStorage on error
         const localData = DBService.getEnviados();
         setEnviados(localData);
       }
