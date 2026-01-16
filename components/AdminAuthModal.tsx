@@ -14,16 +14,11 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
         e.preventDefault();
         setError('');
 
-        // Check hardcoded password first (works without backend)
-        if (password === 'AAFAB@2026#Secure!') {
-            localStorage.setItem('admin_token', 'local_admin_access');
-            onSuccess();
-            onClose();
-            return;
-        }
+        const backendUrl = (import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api';
 
         try {
-            const response = await fetch(`${(import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api'}/auth/login`, {
+            // Tentar sempre o backend primeiro para obter o token real (JWT)
+            const response = await fetch(`${backendUrl}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password })
@@ -32,18 +27,26 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
             const data = await response.json();
 
             if (response.ok && data.success) {
-                // Store JWT token in localStorage
+                // Sucesso com o backend (JWT real)
                 localStorage.setItem('admin_token', data.token);
                 onSuccess();
                 onClose();
-            } else {
-                setError(data.error || 'Senha incorreta.');
-                setPassword('');
+                return;
             }
         } catch (err) {
-            setError('Senha incorreta.');
-            setPassword('');
+            console.log('Backend indisponível para login, tentando acesso local...');
         }
+
+        // Se o backend falhar ou der erro, mas a senha for a correta fixada
+        if (password === 'AAFAB@2026#Secure!') {
+            localStorage.setItem('admin_token', 'local_admin_access');
+            onSuccess();
+            onClose();
+            return;
+        }
+
+        setError('Senha incorreta.');
+        setPassword('');
     };
 
     return (
