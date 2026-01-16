@@ -1,6 +1,6 @@
 -- CreateTable
 CREATE TABLE "Cadastro" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "cpf" TEXT NOT NULL,
     "nome" TEXT NOT NULL,
     "estado" TEXT NOT NULL,
@@ -11,9 +11,12 @@ CREATE TABLE "Cadastro" (
     "endereco" TEXT NOT NULL,
     "bairro" TEXT NOT NULL,
     "cidade" TEXT NOT NULL,
+    "cep" TEXT NOT NULL,
     "certidao_obito" TEXT,
-    "data_envio" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "status" TEXT NOT NULL DEFAULT 'CONCLUÍDO'
+    "data_envio" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" TEXT NOT NULL DEFAULT 'CONCLUÍDO',
+
+    CONSTRAINT "Cadastro_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
