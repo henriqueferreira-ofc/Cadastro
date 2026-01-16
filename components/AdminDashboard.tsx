@@ -21,6 +21,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         setBase(baseData);
 
         const token = localStorage.getItem('admin_token');
+
+        // If using local token (hardcoded password), use localStorage
+        if (token === 'local_admin_access') {
+          const localData = DBService.getEnviados();
+          setEnviados(localData);
+          return;
+        }
+
         if (!token) {
           console.error('Token não encontrado');
           return;
@@ -33,9 +41,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         if (response.ok) {
           const data = await response.json();
           setEnviados(data);
+        } else {
+          // Fallback to localStorage if backend fails
+          const localData = DBService.getEnviados();
+          setEnviados(localData);
         }
       } catch (error) {
         console.error('Erro ao carregar dados do admin:', error);
+        // Fallback to localStorage on error
+        const localData = DBService.getEnviados();
+        setEnviados(localData);
       }
     };
     loadData();
