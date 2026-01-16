@@ -1,12 +1,13 @@
 
 import { BaseAutorizada, CadastroEnviado } from './types';
 import { CPFS_OFICIAIS } from './authorized_cpfs';
+import { getBackendUrl } from './utils';
 
 
 let loadedCpfs: string[] = [];
 
 
-const BACKEND_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api';
+const BACKEND_URL = getBackendUrl();
 
 // Verificar se estamos em produção
 const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
@@ -152,24 +153,6 @@ export const DBService = {
     } catch (e: any) {
       console.error('Erro ao salvar registro:', e);
       return { success: false, error: e.message || 'Erro ao processar cadastro.' };
-    }
-  },
-
-  // Nova função: buscar dados do backend por CPF
-  getCadastroFromBackend: async (cpf: string): Promise<CadastroEnviado | null> => {
-    try {
-      const cleanCpf = cpf.replace(/\D/g, '');
-      const response = await fetch(`${BACKEND_URL}/cadastro/consulta/${cleanCpf}`);
-      
-      if (!response.ok) {
-        return null;
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Erro ao buscar cadastro do backend:', error);
-      return null;
     }
   },
 
