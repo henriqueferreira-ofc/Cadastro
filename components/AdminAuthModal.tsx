@@ -12,6 +12,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
     const [error, setError] = useState('');
 
     const backendUrl = getBackendUrl();
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -25,22 +26,32 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
                 body: JSON.stringify({ password })
             });
 
-            const data = await response.json();
+            const data = await response.json().catch(() => ({} as any));
 
-            if (response.ok && data.success) {
+            if (response.ok && data?.success && data?.token) {
                 // Sucesso com o backend (JWT real)
                 localStorage.setItem('admin_token', data.token);
                 onSuccess();
                 onClose();
                 return;
             }
+
+            // Em produção, não podemos cair no token local (backend sempre exige JWT)
+            if (!isLocalhost) {
+                setError(data?.error || 'Acesso negado (401). Verifique a senha do admin no Render (ADMIN_PASSWORD).');
+                return;
+            }
         } catch (err) {
             console.log('Backend indisponível para login, tentando acesso local...');
+            if (!isLocalhost) {
+                setError('Servidor indisponível. O site precisa acessar a API (Render) para liberar o painel.');
+                return;
+            }
             setError('Servidor indisponível. Inicie o backend para ver os dados do banco (ex: npm run dev:all).');
         }
 
-        // Se o backend falhar ou der erro, mas a senha for a correta fixada
-        if (password === 'AAFAB@2026#Secure!') {
+        // Fallback local apenas em localhost (dev)
+        if (isLocalhost && password === 'AAFAB@2026#Secure!') {
             localStorage.setItem('admin_token', 'local_admin_access');
             onSuccess();
             onClose();

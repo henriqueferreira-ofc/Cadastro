@@ -49,6 +49,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             return;
           } else {
             console.warn('Resposta do backend não OK:', response.status);
+            if (response.status === 401) {
+              console.warn('🔒 Token inválido/expirado. Limpando token e exigindo novo login.');
+              localStorage.removeItem('admin_token');
+            }
           }
         } catch (backendError) {
           console.warn('⚠️ Backend não disponível. Usando localStorage...', backendError);
