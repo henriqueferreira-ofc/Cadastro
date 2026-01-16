@@ -51,25 +51,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         
         // Tentar buscar do backend (desenvolvimento ou produção)
         try {
-          // Se o token for local_admin_access, não adianta tentar o backend se ele exigir JWT
-          if (token === 'local_admin_access') {
-            console.log('🗝️ Usando acesso local (sem JWT)');
+          const response = await fetch(`${backendUrl}/cadastro/admin/list`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setEnviados(data);
+            setUsingDatabase(true);
+            // Sincronizar resposta para localStorage
+            localStorage.setItem('cadastros_enviados', JSON.stringify(data));
+            console.log('✅ Dados carregados do banco de dados');
+            return;
           } else {
-            const response = await fetch(`${backendUrl}/cadastro/admin/list`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              setEnviados(data);
-              setUsingDatabase(true);
-              // Sincronizar resposta para localStorage
-              localStorage.setItem('cadastros_enviados', JSON.stringify(data));
-              console.log('✅ Dados carregados do banco de dados');
-              return;
-            } else {
-              console.warn('Resposta do backend não OK:', response.status);
-            }
+            console.warn('Resposta do backend não OK:', response.status);
           }
         } catch (backendError) {
           console.warn('⚠️ Backend não disponível. Usando localStorage...', backendError);
