@@ -20,9 +20,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         const baseData = DBService.getBase();
         setBase(baseData);
 
-        // Fetch from backend
+        const token = localStorage.getItem('admin_token');
+        if (!token) {
+          console.error('Token não encontrado');
+          return;
+        }
+
+        // Fetch from backend with JWT
         const response = await fetch('http://localhost:3001/api/cadastro/admin/list', {
-          headers: { 'Authorization': 'aaafab_admin_secret_2024' }
+          headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
           const data = await response.json();
@@ -37,8 +43,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
   const handleExport = async () => {
     try {
+      const token = localStorage.getItem('admin_token');
+      if (!token) {
+        alert('Sessão expirada. Faça login novamente.');
+        return;
+      }
+
       const response = await fetch('http://localhost:3001/api/cadastro/admin/export', {
-        headers: { 'Authorization': 'aaafab_admin_secret_2024' }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Falha ao exportar.');
 

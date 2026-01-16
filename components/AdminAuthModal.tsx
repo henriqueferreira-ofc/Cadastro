@@ -10,14 +10,30 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Updated to a strong password as requested
-        if (password === 'AAFAB@2026#Secure!') {
-            onSuccess();
-            onClose();
-        } else {
-            setError('Senha incorreta.');
+        setError('');
+
+        try {
+            const response = await fetch(`${(import.meta as any).env.VITE_API_URL || 'http://localhost:3001/api'}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                // Store JWT token in localStorage
+                localStorage.setItem('admin_token', data.token);
+                onSuccess();
+                onClose();
+            } else {
+                setError(data.error || 'Senha incorreta.');
+                setPassword('');
+            }
+        } catch (err) {
+            setError('Erro ao conectar com o servidor.');
             setPassword('');
         }
     };
