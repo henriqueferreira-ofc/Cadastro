@@ -5,6 +5,8 @@ import { CPFS_OFICIAIS } from './authorized_cpfs';
 
 let loadedCpfs: string[] = [];
 
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
 export const DBService = {
   init: () => {
     if (!localStorage.getItem('cadastros_enviados')) {
@@ -78,30 +80,39 @@ export const DBService = {
     };
   },
 
-  saveRegistration: (data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>): { success: boolean; error?: string } => {
-    const enviados = DBService.getEnviados();
+  saveRegistration: async (data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Logic for local backup (optional)
+      const enviados = DBService.getEnviados();
+      const index = enviados.findIndex(e => e.cpf === data.cpf);
+      const record = { ...data, status: 'CONCLUÍDO', data_envio: new Date().toISOString() };
 
-    // Logic for update: if already exists, replace it
-    const index = enviados.findIndex(e => e.cpf === data.cpf);
+      let updatedEnviados;
+      if (index >= 0) {
+        updatedEnviados = [...enviados];
+        updatedEnviados[index] = { ...enviados[index], ...record };
+      } else {
+        updatedEnviados = [...enviados, { ...record, id: enviados.length + 1 }];
+      }
+      localStorage.setItem('cadastros_enviados', JSON.stringify(updatedEnviados));
 
-    const record: CadastroEnviado = {
-      ...data,
-      id: index >= 0 ? enviados[index].id : enviados.length + 1,
-      data_envio: new Date().toISOString(),
-      status: 'CONCLUÍDO'
-    };
+      // NEW: Backend Call
+      const result = await fetch(`${BACKEND_URL}/cadastro`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
 
-    let updatedEnviados;
-    if (index >= 0) {
-      updatedEnviados = [...enviados];
-      updatedEnviados[index] = record;
-    } else {
-      updatedEnviados = [...enviados, record];
+      if (!result.ok) {
+        const errorData = await result.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Erro na comunicação com o servidor.');
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      console.error('Erro ao salvar:', e);
+      return { success: false, error: e.message || 'Erro ao salvar cadastro.' };
     }
-
-    localStorage.setItem('cadastros_enviados', JSON.stringify(updatedEnviados));
-
-    return { success: true };
   },
 
   updateAuthorizedBase: (_newCpfs: string[]): { success: boolean; count: number; error?: string } => {

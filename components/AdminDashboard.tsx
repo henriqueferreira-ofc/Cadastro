@@ -15,36 +15,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [tab, setTab] = useState<'ENVIADOS' | 'BASE'>('ENVIADOS');
 
   useEffect(() => {
-    const baseData = DBService.getBase();
-    const enviadosData = DBService.getEnviados();
-    setBase(baseData);
-    setEnviados(enviadosData);
-    console.log(`Admin Carregado: ${baseData.length} CPFs na base, ${enviadosData.length} enviados.`);
+    const loadData = async () => {
+      try {
+        const baseData = DBService.getBase();
+        setBase(baseData);
+
+        // Fetch from backend
+        const response = await fetch('http://localhost:3001/api/cadastro/admin/list', {
+          headers: { 'Authorization': 'aaafab_admin_secret_2024' }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setEnviados(data);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados do admin:', error);
+      }
+    };
+    loadData();
   }, []);
 
-  const handleExport = () => {
-    if (enviados.length === 0) {
-      alert("Não há dados para exportar.");
-      return;
+  const handleExport = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/cadastro/admin/export', {
+        headers: { 'Authorization': 'aaafab_admin_secret_2024' }
+      });
+      if (!response.ok) throw new Error('Falha ao exportar.');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Relatorio_AAFAB_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert('Erro ao exportar Excel.');
     }
-
-    const exportData = enviados.map(e => ({
-      'NOME': e.nome,
-      'ESTADO': e.estado,
-      'TURMA - CESD': e.turma_cesd,
-      'RG': e.rg,
-      'CPF': e.cpf,
-      'E-MAIL': e.email,
-      'TEL': e.telefone,
-      'ENDEREÇO': e.endereco,
-      'CEP': e.cep,
-      'DATA ENVIO': new Date(e.data_envio).toLocaleString('pt-BR')
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Cadastros Enviados");
-    XLSX.writeFile(workbook, `Relatorio_Cadastros_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleReset = () => {

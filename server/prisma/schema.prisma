@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Cadastro {
+  id              Int      @id @default(autoincrement())
+  cpf             String   @unique
+  nome            String
+  estado          String
+  turma_cesd      String
+  rg              String
+  email           String
+  telefone        String
+  endereco        String
+  bairro          String
+  cidade          String
+  cep             String
+  certidao_obito  String?
+  data_envio      DateTime @default(now())
+  status          String   @default("CONCLUÍDO")
+}

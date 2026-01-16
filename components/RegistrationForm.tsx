@@ -81,21 +81,23 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
 
     setLoading(true);
 
-    setTimeout(() => {
-      const result = DBService.saveRegistration({
-        ...user,
-        ...formData, // Overwrite user data with form data
-        telefone: formData.telefone.replace(/\D/g, ''),
-        cep: formData.cep.replace(/\D/g, '')
-      });
-
+    // Backend call through DBService
+    DBService.saveRegistration({
+      ...user,
+      ...formData,
+      telefone: formData.telefone.replace(/\D/g, ''),
+      cep: formData.cep.replace(/\D/g, '')
+    }).then(result => {
       setLoading(false);
       if (result.success) {
         onSuccess();
       } else {
         setError(result.error || 'Erro ao salvar cadastro.');
       }
-    }, 1000);
+    }).catch(err => {
+      setLoading(false);
+      setError('Erro de conexão com o servidor.');
+    });
   };
 
   return (
