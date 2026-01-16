@@ -82,21 +82,7 @@ export const DBService = {
 
   saveRegistration: async (data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Logic for local backup (optional)
-      const enviados = DBService.getEnviados();
-      const index = enviados.findIndex(e => e.cpf === data.cpf);
-      const record = { ...data, status: 'CONCLUÍDO', data_envio: new Date().toISOString() };
-
-      let updatedEnviados;
-      if (index >= 0) {
-        updatedEnviados = [...enviados];
-        updatedEnviados[index] = { ...enviados[index], ...record };
-      } else {
-        updatedEnviados = [...enviados, { ...record, id: enviados.length + 1 }];
-      }
-      localStorage.setItem('cadastros_enviados', JSON.stringify(updatedEnviados));
-
-      // NEW: Backend Call
+      // NEW: Backend Call (prioridade máxima)
       const result = await fetch(`${BACKEND_URL}/cadastro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,10 +94,66 @@ export const DBService = {
         throw new Error(errorData.error || 'Erro na comunicação com o servidor.');
       }
 
+      const backendData = await result.json();
+
+      // Local backup DEPOIS que backend confirmar
+      const enviados = DBService.getEnviados();
+      const index = enviados.findIndex(e => e.cpf === data.cpf);
+      const record = {
+        ...backendData,
+        status: backendData.status || 'CONCLUÍDO',
+        data_envio: backendData.data_envio || new Date().toISOString()
+      };
+
+      let updatedEnviados;
+      if (index >= 0) {
+        updatedEnviados = [...enviados];
+        updatedEnviados[index] = { ...enviados[index], ...record };
+      } else {
+        updatedEnviados = [...enviados, { ...record, id: backendData.id || enviados.length + 1 }];
+      }
+      localStorage.setItem('cadastros_enviados', JSON.stringify(updatedEnviados));
+
       return { success: true };
     } catch (e: any) {
       console.error('Erro ao salvar:', e);
       return { success: false, error: e.message || 'Erro ao salvar cadastro.' };
+    }
+  },
+
+  // Nova função: buscar dados do backend por CPF
+  getCadastroFromBackend: async (cpf: string): Promise<CadastroEnviado | null> => {
+    try {
+      const cleanCpf = cpf.replace(/\D/g, '');
+      const response = await fetch(`${BACKEND_URL}/cadastro/consulta/${cleanCpf}`);
+      
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar cadastro do backend:', error);
+      return null;
+    }
+  },
+
+  // Nova função: buscar dados do backend por CPF
+  getCadastroFromBackend: async (cpf: string): Promise<CadastroEnviado | null> => {
+    try {
+      const cleanCpf = cpf.replace(/\D/g, '');
+      const response = await fetch(`${BACKEND_URL}/cadastro/consulta/${cleanCpf}`);
+      
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar cadastro do backend:', error);
+      return null;
     }
   },
 

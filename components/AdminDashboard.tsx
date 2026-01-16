@@ -22,33 +22,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
         const token = localStorage.getItem('admin_token');
 
-        // If using local token (hardcoded password), use localStorage
-        if (token === 'local_admin_access') {
-          const localData = DBService.getEnviados();
-          setEnviados(localData);
-          return;
-        }
-
         if (!token) {
           console.error('Token não encontrado');
           return;
         }
 
-        // Fetch from backend with JWT
-        const response = await fetch('http://localhost:3001/api/cadastro/admin/list', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setEnviados(data);
-        } else {
-          // Fallback to localStorage if backend fails
-          const localData = DBService.getEnviados();
-          setEnviados(localData);
+        // Always fetch from backend with JWT - EVEN on mobile
+        try {
+          const response = await fetch('http://localhost:3001/api/cadastro/admin/list', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setEnviados(data);
+            // Also sync to localStorage for offline access
+            localStorage.setItem('cadastros_enviados', JSON.stringify(data));
+            return;
+          }
+        } catch (backendError) {
+          console.error('Erro ao conectar ao backend:', backendError);
         }
+
+        // Fallback to localStorage if backend fails
+        const localData = DBService.getEnviados();
+        setEnviados(localData);
       } catch (error) {
         console.error('Erro ao carregar dados do admin:', error);
-        // Fallback to localStorage on error
+        // Final fallback to localStorage on error
         const localData = DBService.getEnviados();
         setEnviados(localData);
       }
