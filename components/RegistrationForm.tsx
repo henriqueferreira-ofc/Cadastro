@@ -81,6 +81,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     const { name, value } = e.target;
     let formattedValue = value;
 
+    if (name === 'nome') formattedValue = value.toUpperCase();
     if (name === 'cep') formattedValue = formatCEP(value);
     if (name === 'telefone') formattedValue = formatPhone(value);
 
@@ -213,7 +214,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
             </div>
 
             <div className="md:col-span-2">
-              <label htmlFor="certidao_obito" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Número de Certidão de Óbito</label>
+              <label htmlFor="certidao_obito" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Número de Certidão de Óbito (caso haja)</label>
               <input
                 type="text"
                 id="certidao_obito"
