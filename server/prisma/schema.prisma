@@ -7,20 +7,36 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum MemberStatus {
+  BLOCKED
+  ACTIVE
+}
+
+model Member {
+  id         Int          @id @default(autoincrement())
+  cpf        String       @unique
+  status     MemberStatus @default(BLOCKED)
+  unlockedAt DateTime?
+  unlockedBy String?
+  notes      String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
 model Cadastro {
-  id              Int      @id @default(autoincrement())
-  cpf             String   @unique
-  nome            String
-  estado          String
-  turma_cesd      String
-  rg              String
-  email           String
-  telefone        String
-  endereco        String
-  bairro          String
-  cidade          String
-  cep             String
-  certidao_obito  String?
-  data_envio      DateTime @default(now())
-  status          String   @default("CONCLUÍDO")
+  id             Int      @id @default(autoincrement())
+  cpf            String   @unique
+  nome           String
+  estado         String
+  turma_cesd     String
+  rg             String
+  email          String
+  telefone       String
+  endereco       String
+  bairro         String
+  cidade         String
+  cep            String
+  certidao_obito String?
+  data_envio     DateTime @default(now())
+  status         String   @default("CONCLUÍDO")
 }

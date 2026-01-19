@@ -2,36 +2,14 @@ import { Router, Request, Response } from 'express';
 import prisma from '../db';
 import ExcelJS from 'exceljs';
 import { auditLog } from '../utils/logger';
-import { verifyToken } from '../utils/jwt';
 import { validateCPF } from '../utils/cpfValidator';
+import { adminAuth } from '../middleware/adminAuth';
 
 const router = Router();
 
-// Middleware para autorização administrativa com JWT
-const adminAuth = (req: Request, res: Response, next: () => void) => {
-    const authHeader = req.headers['authorization'];
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Token não fornecido.' });
-    }
-
-    const token = authHeader.substring(7);
-
-    // Modo desenvolvimento: permitir token local para facilitar testes locais
-    // (NÃO funciona em produção)
-    const isDev = process.env.NODE_ENV !== 'production';
-    const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
-    if (isDev && isLocalhost && token === 'local_admin_access') {
-        return next();
-    }
-
-    const decoded = verifyToken(token);
-
-    if (!decoded || decoded.role !== 'admin') {
-        return res.status(401).json({ error: 'Token inválido ou expirado.' });
-    }
-
-    next();
+const normalizeCpf = (cpf: string | string[] | undefined) => {
+    const value = Array.isArray(cpf) ? cpf[0] : cpf;
+    return (value || '').replace(/\D/g, '');
 };
 
 // Função para limpar dados e manter apenas o que o Prisma espera
@@ -56,21 +34,31 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'CPF é obrigatório.' });
         }
 
+        const cleanCpf = normalizeCpf(data.cpf);
+
         // Backend CPF validation
-        if (!validateCPF(data.cpf)) {
+        if (!validateCPF(cleanCpf)) {
             return res.status(400).json({ error: 'CPF inválido.' });
+        }
+
+        // Regra de acesso: CPF precisa estar liberado (Member.status = ACTIVE)
+        const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
+        if (!member || member.status !== 'ACTIVE') {
+            return res.status(403).json({ error: 'CPF bloqueado. Procure o responsável para liberação.' });
         }
 
         // Upsert logic to guarantee uniqueness by CPF
         const cadastro = await prisma.cadastro.upsert({
-            where: { cpf: data.cpf },
+            where: { cpf: cleanCpf },
             update: {
                 ...data,
+                cpf: cleanCpf,
                 data_envio: new Date(),
                 status: 'CONCLUÍDO'
             },
             create: {
                 ...data,
+                cpf: cleanCpf,
                 status: 'CONCLUÍDO'
             }
         });
@@ -99,10 +87,16 @@ router.get('/admin/list', adminAuth, async (req, res) => {
 router.get('/consulta/:cpf', async (req: Request, res: Response) => {
     try {
         const { cpf } = req.params;
-        const cleanCpf = cpf.replace(/\D/g, '');
+        const cleanCpf = normalizeCpf(cpf);
 
         if (!cleanCpf || cleanCpf.length !== 11) {
             return res.status(400).json({ error: 'CPF inválido.' });
+        }
+
+        // Regra de acesso: CPF precisa estar liberado (Member.status = ACTIVE)
+        const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
+        if (!member || member.status !== 'ACTIVE') {
+            return res.status(403).json({ error: 'CPF bloqueado. Procure o responsável para liberação.' });
         }
 
         const cadastro = await prisma.cadastro.findUnique({

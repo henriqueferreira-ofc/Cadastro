@@ -28,6 +28,12 @@ Este repositório contém a aplicação de cadastro.
 - `components/`: Contém os componentes React.
 - `public/`: Contém arquivos públicos como JSON e CSV.
 
+## Lista de CPFs (fonte única)
+
+- A lista oficial de CPFs fica em [public/ENVIAR.csv](public/ENVIAR.csv).
+- O sistema carrega essa lista em runtime via `DBService.loadAuthorizedCPFs()`.
+- Os arquivos `authorized_cpfs.json` (e cópias em `public/` e `docs/`) foram descontinuados para evitar divergência.
+
 ## Contribuição
 
 Sinta-se à vontade para contribuir com melhorias!

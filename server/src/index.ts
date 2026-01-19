@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import cadastroRoutes from './routes/cadastroRoutes';
 import authRoutes from './routes/authRoutes';
+import memberRoutes from './routes/memberRoutes';
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use(limiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', memberRoutes);
 app.use('/api/cadastro', cadastroRoutes);
 
 app.get('/health', (req, res) => {
