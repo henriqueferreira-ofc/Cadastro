@@ -4,7 +4,7 @@ import { DBService } from '../db_service';
 import { BaseAutorizada, CadastroEnviado } from '../types';
 import { ChevronLeft, Download, Trash2, Database, Table, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { getBackendUrl } from '../utils';
+import { getBackendUrl, formatCPF, validateCPF } from '../utils';
 
 interface AdminDashboardProps {
   onBack: () => void;
@@ -15,6 +15,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [enviados, setEnviados] = useState<CadastroEnviado[]>([]);
   const [tab, setTab] = useState<'ENVIADOS' | 'BASE'>('ENVIADOS');
   const [usingDatabase, setUsingDatabase] = useState(false);
+
+  const [memberCpf, setMemberCpf] = useState('');
+  const [memberNotes, setMemberNotes] = useState('');
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberError, setMemberError] = useState('');
+  const [memberInfo, setMemberInfo] = useState<null | {
+    cpf: string;
+    status: 'ACTIVE' | 'BLOCKED' | string;
+    exists: boolean;
+    unlockedAt?: string | null;
+    unlockedBy?: string | null;
+    notes?: string | null;
+    updatedAt?: string | null;
+  }>(null);
 
   const backendUrl = getBackendUrl();
 
@@ -71,6 +85,96 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     };
     loadData();
   }, []);
+
+  const normalizeCpf = (value: string) => value.replace(/\D/g, '');
+
+  const requireAdminToken = (): string | null => {
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+      setMemberError('Sessão expirada. Faça login novamente.');
+      return null;
+    }
+    return token;
+  };
+
+  const handleMemberLookup = async () => {
+    setMemberError('');
+    setMemberInfo(null);
+
+    const cleanCpf = normalizeCpf(memberCpf);
+    if (!validateCPF(cleanCpf)) {
+      setMemberError('Informe um CPF válido.');
+      return;
+    }
+
+    const token = requireAdminToken();
+    if (!token) return;
+
+    setMemberLoading(true);
+    try {
+      const res = await fetch(`${backendUrl}/auth/admin/members/${cleanCpf}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({} as any));
+        if (res.status === 401) {
+          localStorage.removeItem('admin_token');
+        }
+        setMemberError(errorData?.error || 'Falha ao consultar CPF.');
+        return;
+      }
+
+      const data = await res.json();
+      setMemberInfo(data);
+      setMemberNotes(typeof data?.notes === 'string' ? data.notes : '');
+    } catch (e) {
+      setMemberError('Servidor indisponível.');
+    } finally {
+      setMemberLoading(false);
+    }
+  };
+
+  const handleMemberAction = async (action: 'unlock' | 'block') => {
+    setMemberError('');
+
+    const cleanCpf = normalizeCpf(memberCpf);
+    if (!validateCPF(cleanCpf)) {
+      setMemberError('Informe um CPF válido.');
+      return;
+    }
+
+    const token = requireAdminToken();
+    if (!token) return;
+
+    setMemberLoading(true);
+    try {
+      const res = await fetch(`${backendUrl}/auth/admin/members/${action}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ cpf: cleanCpf, notes: memberNotes || undefined }),
+      });
+
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem('admin_token');
+        }
+        setMemberError(data?.error || 'Falha ao atualizar status.');
+        return;
+      }
+
+      // Recarrega status após ação
+      await handleMemberLookup();
+    } catch (e) {
+      setMemberError('Servidor indisponível.');
+    } finally {
+      setMemberLoading(false);
+    }
+  };
 
   const handleExport = async () => {
     const token = localStorage.getItem('admin_token');
@@ -282,6 +386,81 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           </div>
         </div>
       )}
+
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Controle de Acesso (Mensalidade)</div>
+            <div className="text-sm text-gray-700 font-semibold">Consultar, liberar ou bloquear CPF</div>
+          </div>
+          {memberInfo && (
+            <div className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-widest ${
+              memberInfo.status === 'ACTIVE'
+                ? 'text-green-600 bg-green-50 border-green-100'
+                : 'text-red-600 bg-red-50 border-red-100'
+            }`}>
+              {memberInfo.status === 'ACTIVE' ? 'LIBERADO' : 'BLOQUEADO'}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CPF</label>
+            <input
+              value={memberCpf}
+              onChange={(e) => setMemberCpf(formatCPF(e.target.value))}
+              placeholder="000.000.000-00"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Observações (opcional)</label>
+            <input
+              value={memberNotes}
+              onChange={(e) => setMemberNotes(e.target.value)}
+              placeholder="Ex: Pagamento confirmado em 19/01/2026"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            />
+          </div>
+        </div>
+
+        {memberError && (
+          <div className="mt-3 text-sm text-red-600 font-semibold">{memberError}</div>
+        )}
+
+        {memberInfo && (
+          <div className="mt-3 text-xs text-gray-600">
+            <span className="font-mono">{memberInfo.cpf}</span>
+            {memberInfo.unlockedAt ? ` • Liberado em: ${new Date(memberInfo.unlockedAt).toLocaleString('pt-BR')}` : ''}
+            {memberInfo.unlockedBy ? ` • Por: ${memberInfo.unlockedBy}` : ''}
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            onClick={handleMemberLookup}
+            disabled={memberLoading}
+            className="px-4 py-2 bg-gray-900 hover:bg-black text-white rounded-lg text-sm font-bold disabled:opacity-50"
+          >
+            {memberLoading ? 'Aguarde...' : 'Consultar'}
+          </button>
+          <button
+            onClick={() => handleMemberAction('unlock')}
+            disabled={memberLoading}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+          >
+            Liberar CPF
+          </button>
+          <button
+            onClick={() => handleMemberAction('block')}
+            disabled={memberLoading}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+          >
+            Bloquear CPF
+          </button>
+        </div>
+      </div>
 
       <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
         <div className="flex border-b border-gray-200 bg-gray-50">

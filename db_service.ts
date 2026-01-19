@@ -12,6 +12,14 @@ const BACKEND_URL = getBackendUrl();
 // Verificar se estamos em produção
 const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
 
+type EligibilityResponse = {
+  cpf: string;
+  eligible: boolean;
+  status: 'ACTIVE' | 'BLOCKED' | string;
+  unlockedAt?: string | null;
+  error?: string;
+};
+
 export const DBService = {
   init: () => {
     if (!localStorage.getItem('cadastros_enviados')) {
@@ -21,10 +29,37 @@ export const DBService = {
 
   loadAuthorizedCPFs: async (): Promise<boolean> => {
     try {
-      const response = await fetch('/authorized_cpfs.json');
-      if (!response.ok) throw new Error('Falha ao carregar base de CPFs');
-      const data = await response.json();
-      loadedCpfs = Array.isArray(data) ? data : [];
+      const parseCsv = (csvText: string): string[] => {
+        const lines = csvText
+          .replace(/^\uFEFF/, '')
+          .split(/\r?\n/)
+          .map(l => l.trim())
+          .filter(Boolean);
+
+        // Remove header if present
+        const dataLines = lines[0]?.toLowerCase() === 'cpf' ? lines.slice(1) : lines;
+
+        const seen = new Set<string>();
+        const result: string[] = [];
+
+        for (const line of dataLines) {
+          const clean = line.replace(/\D/g, '');
+          if (clean.length !== 11) continue;
+          if (seen.has(clean)) continue;
+          seen.add(clean);
+          result.push(clean);
+        }
+
+        return result;
+      };
+
+      // Fonte única: CSV publicado em /public
+      const csvResponse = await fetch('/ENVIAR.csv');
+      if (!csvResponse.ok) throw new Error('Falha ao carregar base de CPFs');
+
+      const csvText = await csvResponse.text();
+      const cpfs = parseCsv(csvText);
+      loadedCpfs = cpfs;
       return true;
     } catch (error) {
       console.error('Erro ao carregar CPFs:', error);
@@ -58,6 +93,8 @@ export const DBService = {
   },
 
   checkCPF: (cpf: string): { success: boolean; data?: BaseAutorizada; error?: string } => {
+    // OBS: Mantido por compatibilidade com chamadas antigas.
+    // Em produção, o login deve usar checkCPFAsync (backend eligibility).
     const cleanCpf = cpf.replace(/\D/g, '');
     const cpfs = loadedCpfs.length > 0 ? loadedCpfs : CPFS_OFICIAIS;
 
@@ -84,6 +121,54 @@ export const DBService = {
         cadastro_realizado: !!existingCadastro
       }
     };
+  },
+
+  checkCPFAsync: async (cpf: string): Promise<{ success: boolean; data?: BaseAutorizada; error?: string }> => {
+    const cleanCpf = cpf.replace(/\D/g, '');
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/auth/eligibility/${cleanCpf}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({} as any));
+        return { success: false, error: errorData?.error || 'Não foi possível validar o CPF.' };
+      }
+
+      const eligibility = (await response.json()) as EligibilityResponse;
+
+      if (!eligibility.eligible) {
+        return {
+          success: false,
+          error:
+            'CPF bloqueado. Após o pagamento, apresente o comprovante para liberação pela AAFAB.'
+        };
+      }
+
+      const enviados = DBService.getEnviados();
+      const existingCadastro = enviados.find(e => e.cpf === cleanCpf);
+
+      return {
+        success: true,
+        data: {
+          cpf: cleanCpf,
+          nome: existingCadastro?.nome || `ASSOCIADO - ${cleanCpf.substring(0, 3)}.***.${cleanCpf.substring(9)}`,
+          estado: existingCadastro?.estado || 'SP',
+          turma_cesd: existingCadastro?.turma_cesd || '2024/2',
+          rg: existingCadastro?.rg || 'N/A',
+          cadastro_realizado: !!existingCadastro
+        }
+      };
+    } catch (error) {
+      console.warn('Erro ao consultar eligibility no backend:', error);
+
+      // Em produção: nunca liberar por fallback (evita bypass de segurança).
+      if (isProduction) {
+        return { success: false, error: 'Servidor indisponível no momento. Tente novamente em instantes.' };
+      }
+
+      // Em desenvolvimento: fallback opcional para facilitar testes locais.
+      return DBService.checkCPF(cleanCpf);
+    }
   },
 
   saveRegistration: async (data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>): Promise<{ success: boolean; error?: string }> => {
@@ -124,9 +209,21 @@ export const DBService = {
           if (result.status === 400) {
             return { success: false, error: errorData.error || 'Erro na submissão.' };
           }
+
+          // Bloqueado por mensalidade (regra do backend)
+          if (result.status === 403) {
+            return { success: false, error: errorData.error || 'CPF bloqueado para cadastro.' };
+          }
+
+          return { success: false, error: errorData.error || 'Erro ao salvar cadastro.' };
         }
       } catch (backendError) {
         console.warn('⚠️ Backend não disponível para salvar cadastro. Usando localStorage...', backendError);
+
+        // Em produção, não fazemos fallback para localStorage (evita bypass de bloqueio)
+        if (isProduction) {
+          return { success: false, error: 'Servidor indisponível no momento. Tente novamente em instantes.' };
+        }
       }
 
       // Fallback: Salvar apenas no localStorage se backend falhar
@@ -163,6 +260,10 @@ export const DBService = {
       const response = await fetch(`${BACKEND_URL}/cadastro/consulta/${cleanCpf}`);
       
       if (!response.ok) {
+        // Se estiver bloqueado, não retorna dados
+        if (response.status === 403) {
+          return null;
+        }
         return null;
       }
 

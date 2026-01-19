@@ -14,7 +14,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -27,23 +27,20 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
 
     setLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      try {
-        const result = DBService.checkCPF(cleanCpf);
+    try {
+      const result = await DBService.checkCPFAsync(cleanCpf);
 
-        if (result.success && result.data) {
-          onSuccess(result.data);
-        } else {
-          setError(result.error || 'Erro inesperado.');
-        }
-      } catch (err) {
-        console.error('Erro ao validar CPF:', err);
-        setError('Erro interno ao validar CPF. Recarregue a página e tente novamente.');
-      } finally {
-        setLoading(false);
+      if (result.success && result.data) {
+        onSuccess(result.data);
+      } else {
+        setError(result.error || 'Erro inesperado.');
       }
-    }, 600);
+    } catch (err) {
+      console.error('Erro ao validar CPF:', err);
+      setError('Erro interno ao validar CPF. Recarregue a página e tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
