@@ -13,8 +13,9 @@ interface RegistrationFormProps {
 
 const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState(() => {
+    const hasPlaceholderName = /(AUTORIZADO|ASSOCIADO)\s*-/.test(user.nome);
     return {
-      nome: user.nome.includes('AUTORIZADO') ? '' : user.nome,
+      nome: hasPlaceholderName ? '' : user.nome,
       estado: user.estado === 'SP' ? '' : user.estado,
       turma_cesd: user.turma_cesd === '2024/2' ? '' : user.turma_cesd,
       rg: user.rg === 'N/A' ? '' : user.rg,

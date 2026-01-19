@@ -114,7 +114,7 @@ export const DBService = {
       success: true,
       data: {
         cpf: cleanCpf,
-        nome: existingCadastro?.nome || `AUTORIZADO - ${cleanCpf.substring(0, 3)}.***.${cleanCpf.substring(9)}`,
+        nome: existingCadastro?.nome || '',
         estado: existingCadastro?.estado || 'SP',
         turma_cesd: existingCadastro?.turma_cesd || '2024/2',
         rg: existingCadastro?.rg || 'N/A',
@@ -151,7 +151,7 @@ export const DBService = {
         success: true,
         data: {
           cpf: cleanCpf,
-          nome: existingCadastro?.nome || `ASSOCIADO - ${cleanCpf.substring(0, 3)}.***.${cleanCpf.substring(9)}`,
+          nome: existingCadastro?.nome || '',
           estado: existingCadastro?.estado || 'SP',
           turma_cesd: existingCadastro?.turma_cesd || '2024/2',
           rg: existingCadastro?.rg || 'N/A',
