@@ -20,6 +20,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [memberNotes, setMemberNotes] = useState('');
   const [memberLoading, setMemberLoading] = useState(false);
   const [memberError, setMemberError] = useState('');
+  const [memberMessage, setMemberMessage] = useState<string>('');
+  const [memberMessageTone, setMemberMessageTone] = useState<'info' | 'success' | 'warning'>('info');
   const [memberInfo, setMemberInfo] = useState<null | {
     cpf: string;
     status: 'ACTIVE' | 'BLOCKED' | string;
@@ -29,6 +31,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     notes?: string | null;
     updatedAt?: string | null;
   }>(null);
+
+  const [showBulkUnlockModal, setShowBulkUnlockModal] = useState(false);
+  const [bulkUnlockText, setBulkUnlockText] = useState('');
+  const [bulkUnlockResult, setBulkUnlockResult] = useState<null | {
+    totalParsed: number;
+    uniqueValid: number;
+    unlocked: number;
+    unlockedCpfs: string[];
+    alreadyActive: number;
+    alreadyActiveCpfs: string[];
+    invalid: number;
+    invalidTokens: string[];
+    failed: number;
+    failures: Array<{ cpf: string; error: string }>;
+  }>(null);
+
+  const copyText = async (text: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    // Fallback simples
+    window.prompt('Copie o texto abaixo:', text);
+  };
 
   const backendUrl = getBackendUrl();
 
@@ -88,6 +118,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
   const normalizeCpf = (value: string) => value.replace(/\D/g, '');
 
+  const formatUnlockedAt = (unlockedAt?: string | null) => {
+    if (!unlockedAt) return '';
+    const date = new Date(unlockedAt);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('pt-BR');
+  };
+
   const requireAdminToken = (): string | null => {
     const token = localStorage.getItem('admin_token');
     if (!token) {
@@ -99,6 +136,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
   const handleMemberLookup = async () => {
     setMemberError('');
+    setMemberMessage('');
     setMemberInfo(null);
 
     const cleanCpf = normalizeCpf(memberCpf);
@@ -128,6 +166,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       const data = await res.json();
       setMemberInfo(data);
       setMemberNotes(typeof data?.notes === 'string' ? data.notes : '');
+
+      if (data?.status === 'ACTIVE') {
+        setMemberMessageTone('info');
+        const when = formatUnlockedAt(data?.unlockedAt);
+        setMemberMessage(when ? `CPF já está liberado desde: ${when}.` : 'CPF já está liberado.');
+      }
     } catch (e) {
       setMemberError('Servidor indisponível.');
     } finally {
@@ -137,6 +181,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
   const handleMemberAction = async (action: 'unlock' | 'block') => {
     setMemberError('');
+    setMemberMessage('');
 
     const cleanCpf = normalizeCpf(memberCpf);
     if (!validateCPF(cleanCpf)) {
@@ -146,6 +191,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
     const token = requireAdminToken();
     if (!token) return;
+
+    if (
+      action === 'unlock' &&
+      memberInfo &&
+      normalizeCpf(memberInfo.cpf) === cleanCpf &&
+      memberInfo.status === 'ACTIVE'
+    ) {
+      setMemberMessageTone('info');
+      const when = formatUnlockedAt(memberInfo.unlockedAt);
+      setMemberMessage(when ? `CPF já está liberado desde: ${when}.` : 'CPF já está liberado.');
+      return;
+    }
 
     setMemberLoading(true);
     try {
@@ -169,6 +226,131 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
       // Recarrega status após ação
       await handleMemberLookup();
+
+      if (action === 'unlock') {
+        const when = formatUnlockedAt(data?.member?.unlockedAt);
+        if (data?.alreadyActive) {
+          setMemberMessageTone('info');
+          setMemberMessage(when ? `CPF já está liberado desde: ${when}.` : 'CPF já está liberado.');
+        } else {
+          setMemberMessageTone('success');
+          setMemberMessage(when ? `CPF liberado com sucesso em: ${when}.` : 'CPF liberado com sucesso.');
+        }
+      }
+    } catch (e) {
+      setMemberError('Servidor indisponível.');
+    } finally {
+      setMemberLoading(false);
+    }
+  };
+
+  const parseCpfList = (text: string): { cpfs: string[]; invalidCount: number; invalidTokens: string[]; totalTokens: number } => {
+    // Aceita CPFs separados por quebra de linha, vírgula, ponto e vírgula ou espaço
+    const tokens = text
+      .replace(/\r/g, '\n')
+      .split(/[\n,;\t ]+/)
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    let invalidCount = 0;
+    const invalidTokens: string[] = [];
+    const seen = new Set<string>();
+    const cpfs: string[] = [];
+
+    for (const token of tokens) {
+      const clean = normalizeCpf(token);
+      if (!validateCPF(clean)) {
+        invalidCount += 1;
+        if (invalidTokens.length < 50) invalidTokens.push(token);
+        continue;
+      }
+      if (seen.has(clean)) continue;
+      seen.add(clean);
+      cpfs.push(clean);
+    }
+
+    return { cpfs, invalidCount, invalidTokens, totalTokens: tokens.length };
+  };
+
+  const handleBulkUnlock = async () => {
+    setMemberError('');
+    setMemberMessage('');
+    setBulkUnlockResult(null);
+
+    const token = requireAdminToken();
+    if (!token) return;
+
+    const parsed = parseCpfList(bulkUnlockText);
+    if (parsed.cpfs.length === 0) {
+      setMemberError('Cole pelo menos 1 CPF válido para liberar.');
+      return;
+    }
+
+    setMemberLoading(true);
+    try {
+      let unlocked = 0;
+      const unlockedCpfs: string[] = [];
+      let alreadyActive = 0;
+      const alreadyActiveCpfs: string[] = [];
+      let failed = 0;
+      const failures: Array<{ cpf: string; error: string }> = [];
+
+      for (const cpf of parsed.cpfs) {
+        // 1) Consulta status (evita duplicação)
+        const lookupRes = await fetch(`${backendUrl}/auth/admin/members/${cpf}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const lookupData = await lookupRes.json().catch(() => ({} as any));
+        if (!lookupRes.ok) {
+          failed += 1;
+          failures.push({ cpf, error: lookupData?.error || 'Falha ao consultar.' });
+          continue;
+        }
+
+        if (lookupData?.status === 'ACTIVE') {
+          alreadyActive += 1;
+          alreadyActiveCpfs.push(cpf);
+          continue;
+        }
+
+        // 2) Libera
+        const unlockRes = await fetch(`${backendUrl}/auth/admin/members/unlock`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ cpf, notes: memberNotes || undefined }),
+        });
+
+        const unlockData = await unlockRes.json().catch(() => ({} as any));
+        if (!unlockRes.ok) {
+          failed += 1;
+          failures.push({ cpf, error: unlockData?.error || 'Falha ao liberar.' });
+          continue;
+        }
+        unlocked += 1;
+        unlockedCpfs.push(cpf);
+      }
+
+      setBulkUnlockResult({
+        totalParsed: parsed.totalTokens,
+        uniqueValid: parsed.cpfs.length,
+        unlocked,
+        unlockedCpfs,
+        alreadyActive,
+        alreadyActiveCpfs,
+        invalid: parsed.invalidCount,
+        invalidTokens: parsed.invalidTokens,
+        failed,
+        failures,
+      });
+
+      setMemberMessageTone('success');
+      setMemberMessage(
+        `Lote processado: ${unlocked} liberados, ${alreadyActive} já estavam liberados, ${failed} falharam.`
+      );
     } catch (e) {
       setMemberError('Servidor indisponível.');
     } finally {
@@ -429,6 +611,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           <div className="mt-3 text-sm text-red-600 font-semibold">{memberError}</div>
         )}
 
+        {memberMessage && !memberError && (
+          <div
+            className={`mt-3 text-sm font-semibold ${
+              memberMessageTone === 'success'
+                ? 'text-green-700'
+                : memberMessageTone === 'warning'
+                  ? 'text-amber-700'
+                  : 'text-gray-700'
+            }`}
+          >
+            {memberMessage}
+          </div>
+        )}
+
         {memberInfo && (
           <div className="mt-3 text-xs text-gray-600">
             <span className="font-mono">{memberInfo.cpf}</span>
@@ -453,6 +649,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             Liberar CPF
           </button>
           <button
+            onClick={() => {
+              setBulkUnlockResult(null);
+              setBulkUnlockText('');
+              setShowBulkUnlockModal(true);
+            }}
+            disabled={memberLoading}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+          >
+            Liberar em lote
+          </button>
+          <button
             onClick={() => handleMemberAction('block')}
             disabled={memberLoading}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold disabled:opacity-50"
@@ -461,6 +668,124 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           </button>
         </div>
       </div>
+
+      {showBulkUnlockModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl">
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Liberar CPFs em lote</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Cole a sequência de CPFs abaixo. O sistema aceita números separados por quebra de linha, vírgula, ponto e vírgula ou espaço. CPFs duplicados serão ignorados.
+            </p>
+
+            <textarea
+              value={bulkUnlockText}
+              onChange={(e) => setBulkUnlockText(e.target.value)}
+              placeholder="Cole os CPFs aqui...\n111.222.333-44\n55566677788\n..."
+              className="w-full h-64 p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+            />
+
+            {bulkUnlockResult && (
+              <div className="mb-4 text-sm text-gray-700">
+                <div><span className="font-bold">Válidos únicos:</span> {bulkUnlockResult.uniqueValid}</div>
+                <div><span className="font-bold">Liberados agora:</span> {bulkUnlockResult.unlocked}</div>
+                <div><span className="font-bold">Já liberados:</span> {bulkUnlockResult.alreadyActive}</div>
+                <div><span className="font-bold">Inválidos ignorados:</span> {bulkUnlockResult.invalid}</div>
+                <div><span className="font-bold">Falhas:</span> {bulkUnlockResult.failed}</div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      const report = [
+                        `Liberados agora (${bulkUnlockResult.unlockedCpfs.length}):`,
+                        bulkUnlockResult.unlockedCpfs.join('\n'),
+                        '',
+                        `Já liberados (${bulkUnlockResult.alreadyActiveCpfs.length}):`,
+                        bulkUnlockResult.alreadyActiveCpfs.join('\n'),
+                        '',
+                        `Inválidos (exemplos até 50) (${bulkUnlockResult.invalidTokens.length}):`,
+                        bulkUnlockResult.invalidTokens.join('\n'),
+                        '',
+                        `Falhas (${bulkUnlockResult.failures.length}):`,
+                        bulkUnlockResult.failures.map(f => `${f.cpf}: ${f.error}`).join('\n'),
+                      ].join('\n');
+                      void copyText(report);
+                    }}
+                    className="px-3 py-2 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-bold"
+                  >
+                    Copiar relatório
+                  </button>
+                  <button
+                    onClick={() => void copyText(bulkUnlockResult.unlockedCpfs.join('\n'))}
+                    className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold"
+                  >
+                    Copiar liberados
+                  </button>
+                  <button
+                    onClick={() => void copyText(bulkUnlockResult.alreadyActiveCpfs.join('\n'))}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold"
+                  >
+                    Copiar já liberados
+                  </button>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-3">
+                  <details className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <summary className="cursor-pointer font-bold text-gray-800">Ver CPFs liberados agora</summary>
+                    <textarea
+                      readOnly
+                      value={bulkUnlockResult.unlockedCpfs.join('\n')}
+                      className="mt-2 w-full h-28 p-2 border border-gray-200 rounded font-mono text-xs"
+                    />
+                  </details>
+                  <details className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <summary className="cursor-pointer font-bold text-gray-800">Ver CPFs que já estavam liberados</summary>
+                    <textarea
+                      readOnly
+                      value={bulkUnlockResult.alreadyActiveCpfs.join('\n')}
+                      className="mt-2 w-full h-28 p-2 border border-gray-200 rounded font-mono text-xs"
+                    />
+                  </details>
+                  {bulkUnlockResult.invalidTokens.length > 0 && (
+                    <details className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <summary className="cursor-pointer font-bold text-gray-800">Ver inválidos (até 50)</summary>
+                      <textarea
+                        readOnly
+                        value={bulkUnlockResult.invalidTokens.join('\n')}
+                        className="mt-2 w-full h-24 p-2 border border-gray-200 rounded font-mono text-xs"
+                      />
+                    </details>
+                  )}
+                </div>
+
+                {bulkUnlockResult.failed > 0 && (
+                  <div className="mt-2 text-xs text-red-700">
+                    {bulkUnlockResult.failures.slice(0, 10).map((f) => (
+                      <div key={f.cpf}><span className="font-mono">{f.cpf}</span>: {f.error}</div>
+                    ))}
+                    {bulkUnlockResult.failures.length > 10 ? <div>... (mais falhas)</div> : null}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowBulkUnlockModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium"
+              >
+                Fechar
+              </button>
+              <button
+                onClick={handleBulkUnlock}
+                disabled={memberLoading || !bulkUnlockText.trim()}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {memberLoading ? 'Processando...' : 'Liberar lote'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
         <div className="flex border-b border-gray-200 bg-gray-50">

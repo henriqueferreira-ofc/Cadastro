@@ -70,6 +70,12 @@ router.post('/admin/members/unlock', adminAuth, async (req: Request, res: Respon
       return res.status(400).json({ error: 'CPF inválido.' });
     }
 
+    // Se já estiver liberado, não sobrescrever data/hora de liberação
+    const existing = await prisma.member.findUnique({ where: { cpf } });
+    if (existing && existing.status === 'ACTIVE') {
+      return res.json({ success: true, alreadyActive: true, member: existing });
+    }
+
     const member = await prisma.member.upsert({
       where: { cpf },
       update: {
@@ -88,7 +94,7 @@ router.post('/admin/members/unlock', adminAuth, async (req: Request, res: Respon
     });
 
     auditLog('MEMBER_UNLOCK', `CPF liberado: ${cpf}`);
-    return res.json({ success: true, member });
+    return res.json({ success: true, alreadyActive: false, member });
   } catch (error) {
     return res.status(500).json({ error: 'Erro ao liberar CPF.' });
   }
