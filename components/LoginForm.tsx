@@ -49,7 +49,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
         <div className="text-center mb-6 sm:mb-8">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Bem-vindo ao Portal</h2>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Exclusivo para Associado da AAFAB</h2>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Lista Oficial da AAFAB</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Recadastramento obrigatório para Atualização da Lista Oficial da AAFAB</h2>
           <p className="text-sm sm:text-base text-gray-500 mt-2">Informe seu CPF para iniciar a atualização cadastral</p>
         </div>
 
