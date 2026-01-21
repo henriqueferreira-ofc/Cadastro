@@ -140,7 +140,7 @@ export const DBService = {
         return {
           success: false,
           error:
-            'CPF bloqueado. Após o pagamento, apresente o comprovante para liberação pela AAFAB.'
+            'CPF bloqueado. Após o pagamento, apresente o comprovante para o Lider do Estado e terá liberação da AAFAB.'
         };
       }
 
