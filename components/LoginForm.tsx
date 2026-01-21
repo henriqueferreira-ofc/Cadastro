@@ -47,10 +47,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
     <div className="bg-white rounded-lg sm:rounded-2xl shadow-lg sm:shadow-xl overflow-hidden animate-in fade-in duration-500">
       <div className="p-4 sm:p-8 md:p-12">
         <div className="text-center mb-6 sm:mb-8">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Bem-vindo ao Portal</h2>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Exclusivo para Associado da AAFAB</h2>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Recadastramento obrigatório para Atualização da Lista Oficial da AAFAB</h2>
-          <p className="text-sm sm:text-base text-gray-500 mt-2">Informe seu CPF para iniciar a atualização cadastral</p>
+          <h2 className="text-2xl font-extrabold text-gray-900">Bem-vindo ao Portal do Associado AAFAB</h2>
+          <p className="mt-2 text-base font-semibold text-gray-800">Este espaço foi desenvolvido exclusivamente para nossos associados.</p>
+          <p className="mt-1 text-base font-semibold text-gray-800">Solicitamos a realização do recadastramento obrigatório para a atualização da Lista Oficial da AAFAB.</p>
+          <p className="text-sm text-gray-500 mt-2">Informe seu CPF para iniciar a atualização cadastral</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
