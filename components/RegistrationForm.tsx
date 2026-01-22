@@ -82,7 +82,9 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     const { name, value } = e.target;
     let formattedValue = value;
 
-    if (name === 'nome') formattedValue = value.toUpperCase();
+    if (name === 'nome' || name === 'endereco' || name === 'bairro' || name === 'cidade') {
+      formattedValue = value.toUpperCase();
+    }
     if (name === 'cep') formattedValue = formatCEP(value);
     if (name === 'telefone') formattedValue = formatPhone(value);
 
