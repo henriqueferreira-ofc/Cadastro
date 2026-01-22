@@ -4,13 +4,13 @@ const JWT_SECRET = process.env.JWT_SECRET || 'aafab_jwt_secret_change_in_product
 const JWT_EXPIRES_IN = '24h';
 
 export const generateToken = (payload: { role: string }): string => {
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 };
 
 export const verifyToken = (token: string): any => {
-    try {
-        return jwt.verify(token, JWT_SECRET);
-    } catch (error) {
-        return null;
-    }
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
 };

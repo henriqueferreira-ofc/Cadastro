@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { BaseAutorizada } from '../types';
 import { formatCEP, formatPhone } from '../utils';
@@ -25,7 +24,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
       bairro: '',
       cidade: '',
       cep: '',
-      certidao_obito: user.certidao_obito || ''
+      certidao_obito: user.certidao_obito || '',
     };
   });
   const [consent, setConsent] = useState(false);
@@ -37,7 +36,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     const loadExistingData = async () => {
       // Primeiro tenta local
       const enviados = DBService.getEnviados();
-      const existingLocal = enviados.find(e => e.cpf === user.cpf);
+      const existingLocal = enviados.find((e) => e.cpf === user.cpf);
 
       if (existingLocal) {
         setFormData({
@@ -51,7 +50,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
           bairro: existingLocal.bairro || '',
           cidade: existingLocal.cidade || '',
           cep: formatCEP(existingLocal.cep),
-          certidao_obito: existingLocal.certidao_obito || ''
+          certidao_obito: existingLocal.certidao_obito || '',
         });
         return;
       }
@@ -70,7 +69,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
           bairro: backendData.bairro || '',
           cidade: backendData.cidade || '',
           cep: formatCEP(backendData.cep),
-          certidao_obito: backendData.certidao_obito || ''
+          certidao_obito: backendData.certidao_obito || '',
         });
       }
     };
@@ -78,7 +77,9 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     loadExistingData();
   }, [user.cpf]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
     const { name, value } = e.target;
     let formattedValue = value;
 
@@ -88,7 +89,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     if (name === 'cep') formattedValue = formatCEP(value);
     if (name === 'telefone') formattedValue = formatPhone(value);
 
-    setFormData(prev => ({ ...prev, [name]: formattedValue }));
+    setFormData((prev) => ({ ...prev, [name]: formattedValue }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -101,9 +102,18 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     }
 
     // Validation
-    if (!formData.nome.trim()) { setError('Nome completo é obrigatório.'); return; }
-    if (!formData.rg.trim()) { setError('RG é obrigatório.'); return; }
-    if (!formData.turma_cesd.trim()) { setError('Turma é obrigatória.'); return; }
+    if (!formData.nome.trim()) {
+      setError('Nome completo é obrigatório.');
+      return;
+    }
+    if (!formData.rg.trim()) {
+      setError('RG é obrigatório.');
+      return;
+    }
+    if (!formData.turma_cesd.trim()) {
+      setError('Turma é obrigatória.');
+      return;
+    }
 
     if (formData.email.indexOf('@') === -1) {
       setError('Informe um e-mail válido.');
@@ -117,18 +127,20 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
       ...user,
       ...formData,
       telefone: formData.telefone.replace(/\D/g, ''),
-      cep: formData.cep.replace(/\D/g, '')
-    }).then(result => {
-      setLoading(false);
-      if (result.success) {
-        onSuccess();
-      } else {
-        setError(result.error || 'Erro ao salvar cadastro.');
-      }
-    }).catch(err => {
-      setLoading(false);
-      setError('Erro de conexão com o servidor.');
-    });
+      cep: formData.cep.replace(/\D/g, ''),
+    })
+      .then((result) => {
+        setLoading(false);
+        if (result.success) {
+          onSuccess();
+        } else {
+          setError(result.error || 'Erro ao salvar cadastro.');
+        }
+      })
+      .catch((err) => {
+        setLoading(false);
+        setError('Erro de conexão com o servidor.');
+      });
   };
 
   return (
@@ -136,9 +148,13 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
       <div className="bg-blue-50 border-b border-blue-100 px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <FileText className="text-blue-600 w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-          <h2 className="font-bold text-blue-900 uppercase tracking-wider text-xs sm:text-sm">Formulário de Atualização</h2>
+          <h2 className="font-bold text-blue-900 uppercase tracking-wider text-xs sm:text-sm">
+            Formulário de Atualização
+          </h2>
         </div>
-        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold flex-shrink-0">ETAPA ÚNICA</span>
+        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold flex-shrink-0">
+          ETAPA ÚNICA
+        </span>
       </div>
 
       <form onSubmit={handleSubmit} className="p-4 sm:p-6 md:p-8">
@@ -150,14 +166,21 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 bg-gray-50 p-4 sm:p-6 rounded-lg sm:rounded-xl border border-gray-200">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CPF (Verificado)</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                CPF (Verificado)
+              </label>
               <div className="bg-gray-200 px-3 py-2 rounded text-sm text-gray-600 font-mono font-bold select-none cursor-not-allowed break-all">
-                {user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
+                {user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
               </div>
             </div>
 
             <div className="md:col-span-2">
-              <label htmlFor="nome" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Nome Completo *</label>
+              <label
+                htmlFor="nome"
+                className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+              >
+                Nome Completo *
+              </label>
               <input
                 type="text"
                 id="nome"
@@ -171,7 +194,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
             </div>
 
             <div>
-              <label htmlFor="rg" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">RG *</label>
+              <label
+                htmlFor="rg"
+                className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+              >
+                RG *
+              </label>
               <input
                 type="text"
                 id="rg"
@@ -186,7 +214,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
 
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label htmlFor="estado" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Estado *</label>
+                <label
+                  htmlFor="estado"
+                  className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+                >
+                  Estado *
+                </label>
                 <select
                   id="estado"
                   name="estado"
@@ -196,13 +229,48 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
                   onChange={handleInputChange}
                 >
                   <option value="">UF</option>
-                  {['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'].map(uf => (
-                    <option key={uf} value={uf}>{uf}</option>
+                  {[
+                    'AC',
+                    'AL',
+                    'AP',
+                    'AM',
+                    'BA',
+                    'CE',
+                    'DF',
+                    'ES',
+                    'GO',
+                    'MA',
+                    'MT',
+                    'MS',
+                    'MG',
+                    'PA',
+                    'PB',
+                    'PR',
+                    'PE',
+                    'PI',
+                    'RJ',
+                    'RN',
+                    'RS',
+                    'RO',
+                    'RR',
+                    'SC',
+                    'SP',
+                    'SE',
+                    'TO',
+                  ].map((uf) => (
+                    <option key={uf} value={uf}>
+                      {uf}
+                    </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label htmlFor="turma_cesd" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Turma *</label>
+                <label
+                  htmlFor="turma_cesd"
+                  className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+                >
+                  Turma *
+                </label>
                 <input
                   type="text"
                   id="turma_cesd"
@@ -217,7 +285,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
             </div>
 
             <div className="md:col-span-2">
-              <label htmlFor="certidao_obito" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Número de Certidão de Óbito (caso haja)</label>
+              <label
+                htmlFor="certidao_obito"
+                className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+              >
+                Número de Certidão de Óbito (caso haja)
+              </label>
               <input
                 type="text"
                 id="certidao_obito"
@@ -235,11 +308,18 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
         <div className="mb-6 sm:mb-8">
           <div className="flex items-center gap-2 mb-3 sm:mb-4">
             <CheckCircle2 className="text-blue-600 w-4 h-4 flex-shrink-0" />
-            <h3 className="text-xs font-bold text-gray-500 uppercase">Novos Dados para Atualização</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase">
+              Novos Dados para Atualização
+            </h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             <div className="md:col-span-2">
-              <label htmlFor="email" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">E-mail Principal *</label>
+              <label
+                htmlFor="email"
+                className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+              >
+                E-mail Principal *
+              </label>
               <input
                 type="email"
                 id="email"
@@ -252,7 +332,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
               />
             </div>
             <div>
-              <label htmlFor="telefone" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Telefone / WhatsApp *</label>
+              <label
+                htmlFor="telefone"
+                className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+              >
+                Telefone / WhatsApp *
+              </label>
               <input
                 type="text"
                 id="telefone"
@@ -265,7 +350,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
               />
             </div>
             <div>
-              <label htmlFor="cep" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">CEP *</label>
+              <label
+                htmlFor="cep"
+                className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+              >
+                CEP *
+              </label>
               <input
                 type="text"
                 id="cep"
@@ -278,7 +368,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
               />
             </div>
             <div>
-              <label htmlFor="bairro" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Bairro *</label>
+              <label
+                htmlFor="bairro"
+                className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+              >
+                Bairro *
+              </label>
               <input
                 type="text"
                 id="bairro"
@@ -291,7 +386,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
               />
             </div>
             <div>
-              <label htmlFor="cidade" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Cidade *</label>
+              <label
+                htmlFor="cidade"
+                className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+              >
+                Cidade *
+              </label>
               <input
                 type="text"
                 id="cidade"
@@ -304,7 +404,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
               />
             </div>
             <div className="md:col-span-2">
-              <label htmlFor="endereco" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">Endereço Completo *</label>
+              <label
+                htmlFor="endereco"
+                className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2"
+              >
+                Endereço Completo *
+              </label>
               <textarea
                 id="endereco"
                 name="endereco"
@@ -329,7 +434,11 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
               onChange={(e) => setConsent(e.target.checked)}
             />
             <div className="text-xs sm:text-sm text-gray-600 leading-relaxed">
-              <strong>Termo de Consentimento:</strong> Autorizo o tratamento dos meus dados pessoais informados neste formulário com a finalidade exclusiva de atualização da base cadastral organizacional, conforme os requisitos da <strong>Lei Geral de Proteção de Dados (Lei 13.709/2018)</strong>. Estou ciente de que esta atualização é única e irrevogável por este canal.
+              <strong>Termo de Consentimento:</strong> Autorizo o tratamento dos meus dados pessoais
+              informados neste formulário com a finalidade exclusiva de atualização da base
+              cadastral organizacional, conforme os requisitos da{' '}
+              <strong>Lei Geral de Proteção de Dados (Lei 13.709/2018)</strong>. Estou ciente de que
+              esta atualização é única e irrevogável por este canal.
             </div>
           </label>
         </div>
@@ -346,7 +455,11 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 sm:py-4 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base"
           >
-            {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <span>Finalizar e Enviar Cadastro</span>}
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <span>Finalizar e Enviar Cadastro</span>
+            )}
           </button>
           <button
             type="button"

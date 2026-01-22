@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import logo from './logo.png';
 import { BaseAutorizada, ViewState } from './types';
@@ -43,7 +42,9 @@ const App: React.FC = () => {
             <div className="bg-white rounded-full p-0.5 shadow-sm flex-shrink-0">
               <img src={logo} alt="Logo AAFAB" className="h-8 sm:h-9 w-auto" />
             </div>
-            <h1 className="text-[9px] sm:text-[10px] md:text-xs font-bold tracking-tight leading-tight">Portal de Atualização Cadastral - AAFAB</h1>
+            <h1 className="text-[9px] sm:text-[10px] md:text-xs font-bold tracking-tight leading-tight">
+              Portal de Atualização Cadastral - AAFAB
+            </h1>
           </div>
           <button
             onClick={() => setShowAdminAuth(true)}
@@ -86,7 +87,10 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 py-4 text-center text-[10px] sm:text-xs text-gray-400">
         <div className="max-w-4xl mx-auto px-4">
-          <p>&copy; 2026 Portal Corporativo de Atualização Cadastral. AAFAB - Associação Amigos da Força Áerea Brasileira. Em conformidade com a LGPD.</p>
+          <p>
+            &copy; 2026 Portal Corporativo de Atualização Cadastral. AAFAB - Associação Amigos da
+            Força Áerea Brasileira. Em conformidade com a LGPD.
+          </p>
           <p className="mt-1">Acesso restrito e monitorado.</p>
         </div>
       </footer>

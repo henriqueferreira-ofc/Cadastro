@@ -1,4 +1,3 @@
-
 export interface BaseAutorizada {
   cpf: string;
   nome: string;

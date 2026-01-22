@@ -13,9 +13,9 @@ const port = process.env.PORT || 3001;
 
 // Rate limiting: 100 requests per 15 minutes
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: 'Muitas requisições. Tente novamente em 15 minutos.'
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Muitas requisições. Tente novamente em 15 minutos.',
 });
 
 app.use(cors());
@@ -28,9 +28,9 @@ app.use('/api/auth', memberRoutes);
 app.use('/api/cadastro', cadastroRoutes);
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date() });
+  res.json({ status: 'ok', timestamp: new Date() });
 });
 
 app.listen(port, () => {
-    console.log(`🚀 Servidor AAFAB rodando na porta ${port}`);
+  console.log(`🚀 Servidor AAFAB rodando na porta ${port}`);
 });
