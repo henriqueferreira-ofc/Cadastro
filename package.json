@@ -8,7 +8,12 @@
     "dev:server": "npm --prefix server run dev",
     "dev:all": "concurrently -n WEB,API -c blue,green \"npm run dev\" \"npm run dev:server\"",
     "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:server": "npm --prefix server run typecheck",
+    "typecheck:all": "npm run typecheck && npm run typecheck:server",
     "preview": "vite preview",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
     "deploy": "gh-pages -d dist",
     "publish": "git add . && git commit -m 'update' && git push"
   },
@@ -25,6 +30,7 @@
     "concurrently": "^9.2.1",
     "gh-pages": "^5.0.0",
     "postcss": "^8.5.6",
+    "prettier": "^3.4.2",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

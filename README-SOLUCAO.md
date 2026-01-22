@@ -3,6 +3,7 @@
 ## 🎯 O que o Sistema Fazia Antes
 
 **❌ Problema identificado:**
+
 - Você se cadastrava no **computador** ✓
 - Dados eram salvos no **Neon** ✓
 - Mas quando abria no **celular** ✗ DESAPARECIA TUDO
@@ -15,23 +16,30 @@
 ## 🚀 Como foi Resolvido
 
 ### ✅ Mudança 1: Priorizar o Banco de Dados
+
 O sistema agora:
+
 1. **Salva PRIMEIRO no banco de dados Neon** (servidor)
 2. Depois sincroniza para localStorage (backup local)
 
 ### ✅ Mudança 2: Buscar de Qualquer Lugar
+
 - Adicionada rota `/api/cadastro/consulta/:cpf`
 - Permite que qualquer dispositivo (celular ou computador) busque os dados
 - Tudo sincronizado do mesmo banco
 
 ### ✅ Mudança 3: Inteligência no Formulário
+
 Quando você abre o formulário:
+
 1. Procura os dados localmente (rápido)
 2. Se não encontrar, busca do servidor
 3. Resultado: mesmo dados em qualquer dispositivo
 
 ### ✅ Mudança 4: Painel Admin Sincronizado
+
 O painel agora:
+
 - Sempre busca do **banco de dados**
 - Funciona **identicamente** no celular ou computador
 - Mostra todos os cadastros feitos no Brasil
@@ -41,12 +49,14 @@ O painel agora:
 ## 📊 Antes vs Depois
 
 ### ❌ ANTES
+
 ```
 Computador: cadastro → localStorage (só do computador)
 Celular:    painel   → localStorage VAZIO ❌
 ```
 
 ### ✅ DEPOIS
+
 ```
 Computador: cadastro → Neon Database (nuvem)
                       → localStorage (backup)
@@ -59,11 +69,13 @@ Celular:    painel   → Neon Database (MESMO!) ✓
 ## 🧪 Como Testar
 
 ### No Computador:
+
 1. Abra `http://localhost:3000`
 2. Faça um cadastro
 3. Veja aparecer no painel admin
 
 ### No Celular:
+
 1. Descubra seu IP: `ifconfig | grep "inet "`
 2. Acesse no celular: `http://SEU_IP:3000`
 3. Clique em "Admin"
@@ -74,15 +86,15 @@ Celular:    painel   → Neon Database (MESMO!) ✓
 
 ## 📁 Arquivos Modificados
 
-| Arquivo | Mudança |
-|---------|---------|
-| `server/src/routes/cadastroRoutes.ts` | +Nova rota de consulta |
-| `db_service.ts` | Prioriza backend |
-| `components/RegistrationForm.tsx` | Busca inteligente de dados |
-| `components/AdminDashboard.tsx` | Sempre sincroniza |
-| `vite.config.ts` | Configuração de ambiente |
-| `.env` | URL do backend (dev) |
-| `.env.production` | URL do backend (prod) |
+| Arquivo                               | Mudança                    |
+| ------------------------------------- | -------------------------- |
+| `server/src/routes/cadastroRoutes.ts` | +Nova rota de consulta     |
+| `db_service.ts`                       | Prioriza backend           |
+| `components/RegistrationForm.tsx`     | Busca inteligente de dados |
+| `components/AdminDashboard.tsx`       | Sempre sincroniza          |
+| `vite.config.ts`                      | Configuração de ambiente   |
+| `.env`                                | URL do backend (dev)       |
+| `.env.production`                     | URL do backend (prod)      |
 
 ---
 
@@ -92,7 +104,7 @@ Celular:    painel   → Neon Database (MESMO!) ✓
 ✅ CPF único (sem duplicatas)  
 ✅ Validação de CPF no servidor  
 ✅ Autenticação JWT para painel  
-✅ Rate limiting (proteção contra spam)  
+✅ Rate limiting (proteção contra spam)
 
 ---
 
@@ -104,7 +116,7 @@ Agora qualquer pessoa que se cadastre:
 ✅ Ficam salvos permanentemente  
 ✅ **Acessível de qualquer dispositivo**  
 ✅ **Computador, celular, tablet - tudo sincronizado**  
-✅ Funciona offline com cache local  
+✅ Funciona offline com cache local
 
 ---
 
@@ -117,6 +129,7 @@ Para colocar em produção:
    - Gerar URL real (ex: `https://api.aafab.com`)
 
 2. **Atualizar `.env.production`**
+
    ```
    VITE_API_URL=https://sua-api-real.com/api
    ```
@@ -134,11 +147,13 @@ Para colocar em produção:
 **Se não funcionar:**
 
 1. Verifique se backend está rodando:
+
    ```bash
    ps aux | grep "node\|npm"
    ```
 
 2. Teste a API:
+
    ```bash
    curl http://localhost:3001/health
    ```

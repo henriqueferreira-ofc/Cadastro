@@ -1,16 +1,14 @@
-
 import { BaseAutorizada, CadastroEnviado } from './types';
 import { CPFS_OFICIAIS } from './authorized_cpfs';
 import { getBackendUrl } from './utils';
 
-
 let loadedCpfs: string[] = [];
-
 
 const BACKEND_URL = getBackendUrl();
 
 // Verificar se estamos em produção
-const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+const isProduction =
+  window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
 
 type EligibilityResponse = {
   cpf: string;
@@ -33,7 +31,7 @@ export const DBService = {
         const lines = csvText
           .replace(/^\uFEFF/, '')
           .split(/\r?\n/)
-          .map(l => l.trim())
+          .map((l) => l.trim())
           .filter(Boolean);
 
         // Remove header if present
@@ -72,15 +70,15 @@ export const DBService = {
   getBase: (): BaseAutorizada[] => {
     const cpfs = loadedCpfs.length > 0 ? loadedCpfs : CPFS_OFICIAIS;
     const enviados = DBService.getEnviados();
-    const cpfsEnviados = new Set(enviados.map(e => e.cpf));
+    const cpfsEnviados = new Set(enviados.map((e) => e.cpf));
 
-    return cpfs.map(cpf => ({
+    return cpfs.map((cpf) => ({
       cpf,
       nome: `AUTORIZADO - ${cpf.substring(0, 3)}.***.${cpf.substring(9)}`,
       estado: 'SP',
       turma_cesd: '2024/2',
       rg: 'N/A',
-      cadastro_realizado: cpfsEnviados.has(cpf)
+      cadastro_realizado: cpfsEnviados.has(cpf),
     }));
   },
 
@@ -103,12 +101,12 @@ export const DBService = {
     if (!isAuthorized) {
       return {
         success: false,
-        error: 'CPF não autorizado para cadastro.'
+        error: 'CPF não autorizado para cadastro.',
       };
     }
 
     const enviados = DBService.getEnviados();
-    const existingCadastro = enviados.find(e => e.cpf === cleanCpf);
+    const existingCadastro = enviados.find((e) => e.cpf === cleanCpf);
 
     return {
       success: true,
@@ -118,19 +116,21 @@ export const DBService = {
         estado: existingCadastro?.estado || 'SP',
         turma_cesd: existingCadastro?.turma_cesd || '2024/2',
         rg: existingCadastro?.rg || 'N/A',
-        cadastro_realizado: !!existingCadastro
-      }
+        cadastro_realizado: !!existingCadastro,
+      },
     };
   },
 
-  checkCPFAsync: async (cpf: string): Promise<{ success: boolean; data?: BaseAutorizada; error?: string }> => {
+  checkCPFAsync: async (
+    cpf: string,
+  ): Promise<{ success: boolean; data?: BaseAutorizada; error?: string }> => {
     const cleanCpf = cpf.replace(/\D/g, '');
 
     try {
       const response = await fetch(`${BACKEND_URL}/auth/eligibility/${cleanCpf}`);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({} as any));
+        const errorData = await response.json().catch(() => ({}) as any);
         return { success: false, error: errorData?.error || 'Não foi possível validar o CPF.' };
       }
 
@@ -140,12 +140,12 @@ export const DBService = {
         return {
           success: false,
           error:
-            'CPF bloqueado. Após o pagamento, apresente o comprovante para o Lider do Estado e terá liberação da AAFAB.'
+            'CPF bloqueado. Após o pagamento, apresente o comprovante para o Lider do Estado e terá liberação da AAFAB.',
         };
       }
 
       const enviados = DBService.getEnviados();
-      const existingCadastro = enviados.find(e => e.cpf === cleanCpf);
+      const existingCadastro = enviados.find((e) => e.cpf === cleanCpf);
 
       return {
         success: true,
@@ -155,15 +155,18 @@ export const DBService = {
           estado: existingCadastro?.estado || 'SP',
           turma_cesd: existingCadastro?.turma_cesd || '2024/2',
           rg: existingCadastro?.rg || 'N/A',
-          cadastro_realizado: !!existingCadastro
-        }
+          cadastro_realizado: !!existingCadastro,
+        },
       };
     } catch (error) {
       console.warn('Erro ao consultar eligibility no backend:', error);
 
       // Em produção: nunca liberar por fallback (evita bypass de segurança).
       if (isProduction) {
-        return { success: false, error: 'Servidor indisponível no momento. Tente novamente em instantes.' };
+        return {
+          success: false,
+          error: 'Servidor indisponível no momento. Tente novamente em instantes.',
+        };
       }
 
       // Em desenvolvimento: fallback opcional para facilitar testes locais.
@@ -171,7 +174,9 @@ export const DBService = {
     }
   },
 
-  saveRegistration: async (data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>): Promise<{ success: boolean; error?: string }> => {
+  saveRegistration: async (
+    data: Omit<CadastroEnviado, 'id' | 'data_envio' | 'status'>,
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       // Tentar salvar no backend sempre primeiro
       try {
@@ -186,11 +191,11 @@ export const DBService = {
 
           // Sincronizar com localStorage para visualização rápida posterior
           const enviados = DBService.getEnviados();
-          const index = enviados.findIndex(e => e.cpf === data.cpf);
+          const index = enviados.findIndex((e) => e.cpf === data.cpf);
           const record = {
             ...backendData,
             status: backendData.status || 'CONCLUÍDO',
-            data_envio: backendData.data_envio || new Date().toISOString()
+            data_envio: backendData.data_envio || new Date().toISOString(),
           };
 
           let updatedEnviados;
@@ -218,22 +223,28 @@ export const DBService = {
           return { success: false, error: errorData.error || 'Erro ao salvar cadastro.' };
         }
       } catch (backendError) {
-        console.warn('⚠️ Backend não disponível para salvar cadastro. Usando localStorage...', backendError);
+        console.warn(
+          '⚠️ Backend não disponível para salvar cadastro. Usando localStorage...',
+          backendError,
+        );
 
         // Em produção, não fazemos fallback para localStorage (evita bypass de bloqueio)
         if (isProduction) {
-          return { success: false, error: 'Servidor indisponível no momento. Tente novamente em instantes.' };
+          return {
+            success: false,
+            error: 'Servidor indisponível no momento. Tente novamente em instantes.',
+          };
         }
       }
 
       // Fallback: Salvar apenas no localStorage se backend falhar
       const enviados = DBService.getEnviados();
-      const index = enviados.findIndex(e => e.cpf === data.cpf);
+      const index = enviados.findIndex((e) => e.cpf === data.cpf);
       const record = {
         ...data,
         status: 'OFFLINE',
         data_envio: new Date().toISOString(),
-        id: index >= 0 ? enviados[index].id : Date.now()
+        id: index >= 0 ? enviados[index].id : Date.now(),
       };
 
       let updatedEnviados;
@@ -258,7 +269,7 @@ export const DBService = {
     try {
       const cleanCpf = cpf.replace(/\D/g, '');
       const response = await fetch(`${BACKEND_URL}/cadastro/consulta/${cleanCpf}`);
-      
+
       if (!response.ok) {
         // Se estiver bloqueado, não retorna dados
         if (response.status === 403) {
@@ -275,7 +286,9 @@ export const DBService = {
     }
   },
 
-  updateAuthorizedBase: (_newCpfs: string[]): { success: boolean; count: number; error?: string } => {
+  updateAuthorizedBase: (
+    _newCpfs: string[],
+  ): { success: boolean; count: number; error?: string } => {
     return { success: true, count: 0 };
   },
 
@@ -284,5 +297,5 @@ export const DBService = {
     localStorage.removeItem('cadastros_enviados');
     DBService.init();
     window.location.reload();
-  }
+  },
 };

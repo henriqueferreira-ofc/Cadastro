@@ -5,6 +5,7 @@
 ### Backend (server/)
 
 #### 1. `src/routes/cadastroRoutes.ts`
+
 ```
 Adicionado:
 + Nova rota GET /api/cadastro/consulta/:cpf
@@ -16,9 +17,10 @@ Adicionado:
 ### Frontend (root/)
 
 #### 2. `db_service.ts`
+
 ```
 Modificado:
-~ saveRegistration(): 
+~ saveRegistration():
   - Alterada ORDEM DE PRIORIDADE
   - Agora salva NO BACKEND PRIMEIRO
   - Depois sincroniza para localStorage
@@ -29,6 +31,7 @@ Modificado:
 ```
 
 #### 3. `components/RegistrationForm.tsx`
+
 ```
 Adicionado:
 + useEffect() com busca inteligente:
@@ -38,6 +41,7 @@ Adicionado:
 ```
 
 #### 4. `components/AdminDashboard.tsx`
+
 ```
 Modificado:
 ~ loadData():
@@ -47,6 +51,7 @@ Modificado:
 ```
 
 #### 5. `vite.config.ts`
+
 ```
 Adicionado:
 + Definição de variável de ambiente VITE_API_URL
@@ -57,21 +62,25 @@ Adicionado:
 ### Novos Arquivos
 
 #### 6. `.env`
+
 ```
 VITE_API_URL=http://localhost:3001/api
 ```
 
 #### 7. `.env.production`
+
 ```
 VITE_API_URL=https://api.aafab.com/api
 ```
 
 #### 8. `SOLUCAO.md`
+
 ```
 Documentação completa da solução implementada
 ```
 
 #### 9. `test-api.sh`
+
 ```
 Script para testar a sincronização de dados
 ```
@@ -79,6 +88,7 @@ Script para testar a sincronização de dados
 ## 📊 Diagrama do Fluxo ANTES vs DEPOIS
 
 ### ❌ ANTES (Problema)
+
 ```
 Computador:
   Cadastro → localStorage (computador)
@@ -92,6 +102,7 @@ Celular:
 ```
 
 ### ✅ DEPOIS (Solução)
+
 ```
 Computador:
   Cadastro → Neon DB (PRINCIPAL)
@@ -125,11 +136,11 @@ Celular:
 
 ## ✅ RESULTADO
 
-| Recurso | Antes | Depois |
-|---------|-------|--------|
-| Dados sincronizados | ❌ | ✅ |
-| Celular vê computador | ❌ | ✅ |
-| Computador vê celular | ❌ | ✅ |
-| Persistência no banco | ✅ | ✅ |
-| Funciona offline | ⚠️ | ✅ |
-| Segurança | ✅ | ✅✅ |
+| Recurso               | Antes | Depois |
+| --------------------- | ----- | ------ |
+| Dados sincronizados   | ❌    | ✅     |
+| Celular vê computador | ❌    | ✅     |
+| Computador vê celular | ❌    | ✅     |
+| Persistência no banco | ✅    | ✅     |
+| Funciona offline      | ⚠️    | ✅     |
+| Segurança             | ✅    | ✅✅   |

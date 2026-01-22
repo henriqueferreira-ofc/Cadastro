@@ -8,7 +8,6 @@
 
 Publicação automática para GitHub Pages via workflow `.github/workflows/deploy.yml`.
 
-
 # Cadastro
 
 Este repositório contém a aplicação de cadastro.

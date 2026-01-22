@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build outputs
+/dist/
+server/dist/
+
+# Vite / docs build artifacts
+/assets/
+docs/assets/
+public/assets/
+
+# Prisma
+server/prisma/migrations/
+
+# Large data files
+public/ENVIAR.csv
+docs/ENVIAR.csv
+
+# Generated/minified bundles
+**/*.min.*
+
+# Misc
+*.log

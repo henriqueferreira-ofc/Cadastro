@@ -3,13 +3,9 @@ import prisma from '../db';
 import { validateCPF } from '../utils/cpfValidator';
 import { adminAuth } from '../middleware/adminAuth';
 import { auditLog } from '../utils/logger';
+import { normalizeCpf } from '../utils/normalizeCpf';
 
 const router = Router();
-
-const normalizeCpf = (cpf: string | string[] | undefined) => {
-  const value = Array.isArray(cpf) ? cpf[0] : cpf;
-  return (value || '').replace(/\D/g, '');
-};
 
 // Público: checa se CPF está liberado
 router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
@@ -26,7 +22,12 @@ router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
       return res.json({ cpf: cleanCpf, eligible: false, status: member?.status ?? 'BLOCKED' });
     }
 
-    return res.json({ cpf: cleanCpf, eligible: true, status: member.status, unlockedAt: member.unlockedAt });
+    return res.json({
+      cpf: cleanCpf,
+      eligible: true,
+      status: member.status,
+      unlockedAt: member.unlockedAt,
+    });
   } catch (error) {
     return res.status(500).json({ error: 'Erro ao verificar elegibilidade.' });
   }
