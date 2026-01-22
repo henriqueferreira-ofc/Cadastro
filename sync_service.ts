@@ -17,7 +17,7 @@ export const SyncService = {
       }
 
       const request = window.indexedDB.open(DB_NAME, 1);
-      
+
       request.onerror = () => {
         console.warn('Erro ao abrir IndexedDB');
         resolve(null);
@@ -42,7 +42,7 @@ export const SyncService = {
       const transaction = db.transaction([STORE_NAME], 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
 
-      data.forEach(item => {
+      data.forEach((item) => {
         store.put(item);
       });
 
@@ -96,5 +96,5 @@ export const SyncService = {
       console.warn('Erro ao recuperar dados sincronizados:', error);
     }
     return [];
-  }
+  },
 };
