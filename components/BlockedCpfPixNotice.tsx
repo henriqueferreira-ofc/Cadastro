@@ -41,7 +41,7 @@ const BlockedCpfPixNotice: React.FC<BlockedCpfPixNoticeProps> = ({ className }) 
           <QrCode className="w-5 h-5 text-red-700" />
         </div>
         <div className="min-w-0">
-          <p className="font-bold text-sm sm:text-base text-red-700">CPF bloqueado</p>
+          <p className="font-bold text-sm sm:text-base text-red-700">CPF Bloqueado ou Não Encontrado</p>
           <p className="text-xs sm:text-sm mt-1 leading-relaxed">
             Após o pagamento, apresente o comprovante para o Lider do Estado e terá liberação da
             AAFAB.
