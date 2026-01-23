@@ -14,7 +14,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isBlockedCpfError = /cpf\s*bloqueado/i.test(error);
+  const showPixNotice = /cpf\s*(bloqueado|n[ãa]o\s*(autorizado|encontrado))/i.test(error);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,14 +83,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             </div>
           </div>
 
-          {error && (
+          {error && !showPixNotice && (
             <div className="bg-red-50 border-l-4 border-red-500 p-3 sm:p-4 flex items-start gap-2 sm:gap-3 rounded">
               <AlertCircle className="text-red-500 w-5 h-5 flex-shrink-0 mt-0.5" />
               <p className="text-xs sm:text-sm text-red-700 font-medium">{error}</p>
             </div>
           )}
 
-          {isBlockedCpfError && <BlockedCpfPixNotice />}
+          {showPixNotice && <BlockedCpfPixNotice />}
 
           <button
             type="submit"
