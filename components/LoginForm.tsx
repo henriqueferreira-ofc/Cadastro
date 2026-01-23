@@ -3,6 +3,7 @@ import { formatCPF, validateCPF } from '../utils';
 import { DBService } from '../db_service';
 import { BaseAutorizada } from '../types';
 import { Search, AlertCircle, Info } from 'lucide-react';
+import BlockedCpfPixNotice from './BlockedCpfPixNotice';
 
 interface LoginFormProps {
   onSuccess: (user: BaseAutorizada) => void;
@@ -12,6 +13,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [cpf, setCpf] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const isBlockedCpfError = /cpf\s*bloqueado/i.test(error);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +89,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
               <p className="text-xs sm:text-sm text-red-700 font-medium">{error}</p>
             </div>
           )}
+
+          {isBlockedCpfError && <BlockedCpfPixNotice />}
 
           <button
             type="submit"
