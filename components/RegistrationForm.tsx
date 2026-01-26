@@ -44,7 +44,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
           estado: existingLocal.estado,
           turma_cesd: existingLocal.turma_cesd,
           rg: existingLocal.rg,
-          email: existingLocal.email,
+          email: (existingLocal.email || '').toLowerCase(),
           telefone: formatPhone(existingLocal.telefone),
           endereco: existingLocal.endereco,
           bairro: existingLocal.bairro || '',
@@ -63,7 +63,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
           estado: backendData.estado,
           turma_cesd: backendData.turma_cesd,
           rg: backendData.rg,
-          email: backendData.email,
+          email: (backendData.email || '').toLowerCase(),
           telefone: formatPhone(backendData.telefone),
           endereco: backendData.endereco,
           bairro: backendData.bairro || '',
@@ -86,6 +86,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     if (name === 'nome' || name === 'endereco' || name === 'bairro' || name === 'cidade') {
       formattedValue = value.toUpperCase();
     }
+    if (name === 'email') formattedValue = value.toLowerCase();
     if (name === 'cep') formattedValue = formatCEP(value);
     if (name === 'telefone') formattedValue = formatPhone(value);
 
