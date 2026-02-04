@@ -14,7 +14,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const showPixNotice = /cpf\s*(bloqueado|n[ãa]o\s*(autorizado|encontrado))/i.test(error);
+  const showPixNotice = /cpf\s*bloqueado/i.test(error);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
