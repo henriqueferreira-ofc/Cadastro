@@ -15,6 +15,7 @@ type EligibilityResponse = {
   eligible: boolean;
   status: 'ACTIVE' | 'BLOCKED' | string;
   unlockedAt?: string | null;
+  hasCadastro?: boolean;
   error?: string;
 };
 
@@ -126,8 +127,26 @@ export const DBService = {
     // OBS: Mantido por compatibilidade com chamadas antigas.
     // Em produção, o login deve usar checkCPFAsync (backend eligibility).
     const cleanCpf = cpf.replace(/\D/g, '');
-    const cpfs = loadedCpfs.length > 0 ? loadedCpfs : CPFS_OFICIAIS;
+    const enviados = DBService.getEnviados();
+    const existingCadastro = enviados.find((e) => e.cpf === cleanCpf);
 
+    // Se já existe cadastro local, permitir acesso mesmo fora da lista oficial
+    // (isso evita bloquear quem já estava cadastrado antes de atualizar a base)
+    if (existingCadastro) {
+      return {
+        success: true,
+        data: {
+          cpf: cleanCpf,
+          nome: existingCadastro.nome || '',
+          estado: existingCadastro.estado || 'SP',
+          turma_cesd: existingCadastro.turma_cesd || '2024/2',
+          rg: existingCadastro.rg || 'N/A',
+          cadastro_realizado: true,
+        },
+      };
+    }
+
+    const cpfs = loadedCpfs.length > 0 ? loadedCpfs : CPFS_OFICIAIS;
     const isAuthorized = cpfs.includes(cleanCpf);
 
     if (!isAuthorized) {
@@ -138,19 +157,10 @@ export const DBService = {
       };
     }
 
-    const enviados = DBService.getEnviados();
-    const existingCadastro = enviados.find((e) => e.cpf === cleanCpf);
-
     return {
-      success: true,
-      data: {
-        cpf: cleanCpf,
-        nome: existingCadastro?.nome || '',
-        estado: existingCadastro?.estado || 'SP',
-        turma_cesd: existingCadastro?.turma_cesd || '2024/2',
-        rg: existingCadastro?.rg || 'N/A',
-        cadastro_realizado: !!existingCadastro,
-      },
+      success: false,
+      error:
+        'CPF bloqueado. Após o pagamento, apresente o comprovante para o Lider do Estado e terá liberação da AAFAB.',
     };
   },
 
@@ -183,6 +193,7 @@ export const DBService = {
 
       const enviados = DBService.getEnviados();
       const existingCadastro = enviados.find((e) => e.cpf === cleanCpf);
+      const hasCadastro = Boolean(eligibility.hasCadastro) || Boolean(existingCadastro);
 
       return {
         success: true,
@@ -192,7 +203,7 @@ export const DBService = {
           estado: existingCadastro?.estado || 'SP',
           turma_cesd: existingCadastro?.turma_cesd || '2024/2',
           rg: existingCadastro?.rg || 'N/A',
-          cadastro_realizado: !!existingCadastro,
+          cadastro_realizado: hasCadastro,
         },
       };
     } catch (error) {
