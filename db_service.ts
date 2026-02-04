@@ -152,7 +152,7 @@ export const DBService = {
     if (!isAuthorized) {
       return {
         success: false,
-        error: 'CPF não faz parte do sistema (não está na lista oficial).',
+        error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
         code: 'CPF_NOT_IN_SYSTEM',
       };
     }

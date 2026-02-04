@@ -26,7 +26,7 @@ router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
 
     if (!isCpfInAuthorizedList(cleanCpf)) {
       return res.status(403).json({
-        error: 'CPF não faz parte do sistema (não está na lista oficial).',
+        error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
         code: 'CPF_NOT_IN_SYSTEM',
       });
     }
@@ -69,7 +69,7 @@ router.get('/admin/members/:cpf', adminAuth, async (req: Request, res: Response)
         status: 'BLOCKED',
         exists: false,
         inAuthorizedList: false,
-        warning: 'CPF não faz parte do sistema (não está na lista oficial).',
+        warning: 'CPF não faz parte do sistema (não está na lista AAFAB).',
       });
     }
 
@@ -106,7 +106,7 @@ router.post('/admin/members/unlock', adminAuth, async (req: Request, res: Respon
 
     if (!isCpfInAuthorizedList(cpf)) {
       return res.status(403).json({
-        error: 'CPF não faz parte do sistema (não está na lista oficial).',
+        error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
         code: 'CPF_NOT_IN_SYSTEM',
       });
     }
@@ -153,7 +153,7 @@ router.post('/admin/members/block', adminAuth, async (req: Request, res: Respons
 
     if (!isCpfInAuthorizedList(cpf)) {
       return res.status(403).json({
-        error: 'CPF não faz parte do sistema (não está na lista oficial).',
+        error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
         code: 'CPF_NOT_IN_SYSTEM',
       });
     }
