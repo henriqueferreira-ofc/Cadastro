@@ -18,6 +18,8 @@ type EligibilityResponse = {
   error?: string;
 };
 
+type CheckCpfResult = { success: boolean; data?: BaseAutorizada; error?: string; code?: string };
+
 export const DBService = {
   init: () => {
     if (!localStorage.getItem('cadastros_enviados')) {
@@ -26,6 +28,20 @@ export const DBService = {
   },
 
   loadAuthorizedCPFs: async (): Promise<boolean> => {
+    const parseJsonCpfArray = (data: unknown): string[] => {
+      if (!Array.isArray(data)) return [];
+      const seen = new Set<string>();
+      const result: string[] = [];
+      for (const item of data) {
+        const clean = String(item || '').replace(/\D/g, '');
+        if (clean.length !== 11) continue;
+        if (seen.has(clean)) continue;
+        seen.add(clean);
+        result.push(clean);
+      }
+      return result;
+    };
+
     try {
       const parseCsv = (csvText: string): string[] => {
         const lines = csvText
@@ -61,7 +77,23 @@ export const DBService = {
       return true;
     } catch (error) {
       console.error('Erro ao carregar CPFs:', error);
-      // Fallback for development if file is missing in public
+
+      // Fallback: tenta carregar JSON (public/authorized_cpfs.json)
+      try {
+        const jsonResponse = await fetch('/authorized_cpfs.json');
+        if (jsonResponse.ok) {
+          const jsonData = (await jsonResponse.json()) as unknown;
+          const cpfs = parseJsonCpfArray(jsonData);
+          if (cpfs.length > 0) {
+            loadedCpfs = cpfs;
+            return true;
+          }
+        }
+      } catch (jsonError) {
+        console.error('Erro ao carregar CPFs via JSON:', jsonError);
+      }
+
+      // Último fallback (dev): lista embutida (pode estar vazia)
       loadedCpfs = CPFS_OFICIAIS;
       return false;
     }
@@ -90,7 +122,7 @@ export const DBService = {
     }
   },
 
-  checkCPF: (cpf: string): { success: boolean; data?: BaseAutorizada; error?: string } => {
+  checkCPF: (cpf: string): CheckCpfResult => {
     // OBS: Mantido por compatibilidade com chamadas antigas.
     // Em produção, o login deve usar checkCPFAsync (backend eligibility).
     const cleanCpf = cpf.replace(/\D/g, '');
@@ -101,7 +133,8 @@ export const DBService = {
     if (!isAuthorized) {
       return {
         success: false,
-        error: 'CPF não autorizado para cadastro.',
+        error: 'CPF não faz parte do sistema (não está na lista oficial).',
+        code: 'CPF_NOT_IN_SYSTEM',
       };
     }
 
@@ -123,7 +156,7 @@ export const DBService = {
 
   checkCPFAsync: async (
     cpf: string,
-  ): Promise<{ success: boolean; data?: BaseAutorizada; error?: string }> => {
+  ): Promise<CheckCpfResult> => {
     const cleanCpf = cpf.replace(/\D/g, '');
 
     try {
@@ -131,7 +164,11 @@ export const DBService = {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}) as any);
-        return { success: false, error: errorData?.error || 'Não foi possível validar o CPF.' };
+        return {
+          success: false,
+          error: errorData?.error || 'Não foi possível validar o CPF.',
+          code: typeof errorData?.code === 'string' ? errorData.code : undefined,
+        };
       }
 
       const eligibility = (await response.json()) as EligibilityResponse;

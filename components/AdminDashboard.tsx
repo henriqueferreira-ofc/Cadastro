@@ -27,6 +27,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     cpf: string;
     status: 'ACTIVE' | 'BLOCKED' | string;
     exists: boolean;
+    inAuthorizedList?: boolean;
+    warning?: string;
     unlockedAt?: string | null;
     unlockedBy?: string | null;
     notes?: string | null;
@@ -66,6 +68,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Garante que a base oficial (CSV/JSON) esteja carregada antes de renderizar a tabela.
+        await DBService.loadAuthorizedCPFs();
         const baseData = DBService.getBase();
         setBase(baseData);
 
@@ -168,6 +172,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       setMemberInfo(data);
       setMemberNotes(typeof data?.notes === 'string' ? data.notes : '');
 
+      if (data?.inAuthorizedList === false) {
+        setMemberMessageTone('warning');
+        setMemberMessage(
+          data?.warning || 'ALERTA: CPF não faz parte do sistema (não está na lista oficial).',
+        );
+        return;
+      }
+
       if (data?.status === 'ACTIVE') {
         setMemberMessageTone('info');
         const when = formatUnlockedAt(data?.unlockedAt);
@@ -192,6 +204,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
     const token = requireAdminToken();
     if (!token) return;
+
+    if (
+      memberInfo &&
+      normalizeCpf(memberInfo.cpf) === cleanCpf &&
+      memberInfo.inAuthorizedList === false
+    ) {
+      setMemberMessageTone('warning');
+      setMemberMessage(memberInfo.warning || 'ALERTA: CPF não faz parte do sistema.');
+      return;
+    }
 
     if (
       action === 'unlock' &&
@@ -221,6 +243,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         if (res.status === 401) {
           localStorage.removeItem('admin_token');
         }
+        // Mensagem diferenciada para CPF fora do sistema
+        if (data?.code === 'CPF_NOT_IN_SYSTEM') {
+          setMemberMessageTone('warning');
+          setMemberMessage(data?.error || 'ALERTA: CPF não faz parte do sistema.');
+          return;
+        }
+
         setMemberError(data?.error || 'Falha ao atualizar status.');
         return;
       }
@@ -313,6 +342,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           continue;
         }
 
+        if (lookupData?.inAuthorizedList === false) {
+          failed += 1;
+          failures.push({
+            cpf,
+            error: lookupData?.warning || 'CPF não faz parte do sistema (não está na lista oficial).',
+          });
+          continue;
+        }
+
         if (lookupData?.status === 'ACTIVE') {
           alreadyActive += 1;
           alreadyActiveCpfs.push(cpf);
@@ -375,16 +413,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
       const exportData = enviados.map((e) => ({
         CPF: e.cpf,
-        Nome: e.nome,
-        Email: e.email,
-        Telefone: e.telefone,
-        Estado: e.estado,
-        Bairro: e.bairro,
-        Cidade: e.cidade,
-        Endereço: e.endereco,
-        Turma: e.turma_cesd,
-        'Certidão de Óbito': e.certidao_obito || '',
-        'Data Envio': new Date(e.data_envio).toLocaleString('pt-BR'),
+        NOME: e.nome,
+        EMAIL: e.email,
+        TELEFONE: e.telefone,
+        ESTADO: e.estado,
+        BAIRRO: e.bairro,
+        CIDADE: e.cidade,
+        ENDEREÇO: e.endereco,
+        TURMA: e.turma_cesd,
+        'CERTIDÃO DE ÓBITO': e.certidao_obito || '',
+        'DATA ENVIO': new Date(e.data_envio).toLocaleString('pt-BR'),
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(exportData);

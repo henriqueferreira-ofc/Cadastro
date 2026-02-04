@@ -136,16 +136,16 @@ router.get('/admin/export', adminAuth, async (req, res) => {
 
     worksheet.columns = [
       { header: 'CPF', key: 'cpf', width: 15 },
-      { header: 'Nome', key: 'nome', width: 30 },
-      { header: 'Email', key: 'email', width: 25 },
-      { header: 'Telefone', key: 'telefone', width: 15 },
-      { header: 'Estado', key: 'estado', width: 10 },
-      { header: 'Bairro', key: 'bairro', width: 15 },
-      { header: 'Cidade', key: 'cidade', width: 15 },
-      { header: 'Endereço', key: 'endereco', width: 40 },
-      { header: 'Turma', key: 'turma_cesd', width: 15 },
-      { header: 'Certidão de Óbito', key: 'certidao_obito', width: 20 },
-      { header: 'Data Envio', key: 'data_envio', width: 20 },
+      { header: 'NOME', key: 'nome', width: 30 },
+      { header: 'EMAIL', key: 'email', width: 25 },
+      { header: 'TELEFONE', key: 'telefone', width: 15 },
+      { header: 'ESTADO', key: 'estado', width: 10 },
+      { header: 'BAIRRO', key: 'bairro', width: 15 },
+      { header: 'CIDADE', key: 'cidade', width: 15 },
+      { header: 'ENDEREÇO', key: 'endereco', width: 40 },
+      { header: 'TURMA', key: 'turma_cesd', width: 15 },
+      { header: 'CERTIDÃO DE ÓBITO', key: 'certidao_obito', width: 20 },
+      { header: 'DATA ENVIO', key: 'data_envio', width: 20 },
     ];
 
     cadastros.forEach((c) => {

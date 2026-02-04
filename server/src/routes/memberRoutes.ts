@@ -4,6 +4,7 @@ import { validateCPF } from '../utils/cpfValidator';
 import { adminAuth } from '../middleware/adminAuth';
 import { auditLog } from '../utils/logger';
 import { normalizeCpf } from '../utils/normalizeCpf';
+import { isCpfInAuthorizedList } from '../utils/authorizedCpfList';
 
 const router = Router();
 
@@ -14,6 +15,13 @@ router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
 
     if (!validateCPF(cleanCpf)) {
       return res.status(400).json({ error: 'CPF inválido.' });
+    }
+
+    if (!isCpfInAuthorizedList(cleanCpf)) {
+      return res.status(403).json({
+        error: 'CPF não faz parte do sistema (não está na lista oficial).',
+        code: 'CPF_NOT_IN_SYSTEM',
+      });
     }
 
     const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
@@ -41,16 +49,28 @@ router.get('/admin/members/:cpf', adminAuth, async (req: Request, res: Response)
       return res.status(400).json({ error: 'CPF inválido.' });
     }
 
+    const inAuthorizedList = isCpfInAuthorizedList(cleanCpf);
+    if (!inAuthorizedList) {
+      return res.json({
+        cpf: cleanCpf,
+        status: 'BLOCKED',
+        exists: false,
+        inAuthorizedList: false,
+        warning: 'CPF não faz parte do sistema (não está na lista oficial).',
+      });
+    }
+
     const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
 
     if (!member) {
-      return res.json({ cpf: cleanCpf, status: 'BLOCKED', exists: false });
+      return res.json({ cpf: cleanCpf, status: 'BLOCKED', exists: false, inAuthorizedList: true });
     }
 
     return res.json({
       cpf: member.cpf,
       status: member.status,
       exists: true,
+      inAuthorizedList: true,
       unlockedAt: member.unlockedAt,
       unlockedBy: member.unlockedBy,
       notes: member.notes,
@@ -69,6 +89,13 @@ router.post('/admin/members/unlock', adminAuth, async (req: Request, res: Respon
 
     if (!validateCPF(cpf)) {
       return res.status(400).json({ error: 'CPF inválido.' });
+    }
+
+    if (!isCpfInAuthorizedList(cpf)) {
+      return res.status(403).json({
+        error: 'CPF não faz parte do sistema (não está na lista oficial).',
+        code: 'CPF_NOT_IN_SYSTEM',
+      });
     }
 
     // Se já estiver liberado, não sobrescrever data/hora de liberação
@@ -109,6 +136,13 @@ router.post('/admin/members/block', adminAuth, async (req: Request, res: Respons
 
     if (!validateCPF(cpf)) {
       return res.status(400).json({ error: 'CPF inválido.' });
+    }
+
+    if (!isCpfInAuthorizedList(cpf)) {
+      return res.status(403).json({
+        error: 'CPF não faz parte do sistema (não está na lista oficial).',
+        code: 'CPF_NOT_IN_SYSTEM',
+      });
     }
 
     const member = await prisma.member.upsert({
