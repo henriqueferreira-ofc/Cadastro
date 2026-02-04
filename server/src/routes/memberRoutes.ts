@@ -17,6 +17,13 @@ router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'CPF inválido.' });
     }
 
+    // Regra: se já existe cadastro, permitir acesso ao próprio cadastro
+    // (mesmo que o CPF não esteja mais na lista oficial)
+    const existingCadastro = await prisma.cadastro.findUnique({ where: { cpf: cleanCpf } });
+    if (existingCadastro) {
+      return res.json({ cpf: cleanCpf, eligible: true, status: 'REGISTERED', hasCadastro: true });
+    }
+
     if (!isCpfInAuthorizedList(cleanCpf)) {
       return res.status(403).json({
         error: 'CPF não faz parte do sistema (não está na lista oficial).',
@@ -27,7 +34,12 @@ router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
     const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
 
     if (!member || member.status !== 'ACTIVE') {
-      return res.json({ cpf: cleanCpf, eligible: false, status: member?.status ?? 'BLOCKED' });
+      return res.json({
+        cpf: cleanCpf,
+        eligible: false,
+        status: member?.status ?? 'BLOCKED',
+        hasCadastro: false,
+      });
     }
 
     return res.json({
@@ -35,6 +47,7 @@ router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
       eligible: true,
       status: member.status,
       unlockedAt: member.unlockedAt,
+      hasCadastro: false,
     });
   } catch (error) {
     return res.status(500).json({ error: 'Erro ao verificar elegibilidade.' });

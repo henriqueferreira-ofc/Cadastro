@@ -5,6 +5,7 @@ import { auditLog } from '../utils/logger';
 import { validateCPF } from '../utils/cpfValidator';
 import { adminAuth } from '../middleware/adminAuth';
 import { normalizeCpf } from '../utils/normalizeCpf';
+import { isCpfInAuthorizedList } from '../utils/authorizedCpfList';
 
 const router = Router();
 
@@ -101,23 +102,23 @@ router.get('/consulta/:cpf', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'CPF inválido.' });
     }
 
-    // Regra de acesso: CPF precisa estar liberado (Member.status = ACTIVE)
-    const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
-    if (!member || member.status !== 'ACTIVE') {
-      return res
-        .status(403)
-        .json({ error: 'CPF bloqueado. Procure o responsável para liberação.' });
-    }
-
-    const cadastro = await prisma.cadastro.findUnique({
+    // Se já existe cadastro, permitir consulta (mesmo fora da lista oficial)
+    const existingCadastro = await prisma.cadastro.findUnique({
       where: { cpf: cleanCpf },
     });
 
-    if (!cadastro) {
-      return res.status(404).json({ error: 'Cadastro não encontrado.' });
+    if (existingCadastro) {
+      return res.json(existingCadastro);
     }
 
-    res.json(cadastro);
+    if (!isCpfInAuthorizedList(cleanCpf)) {
+      return res.status(403).json({
+        error: 'CPF não faz parte do sistema (não está na lista oficial).',
+        code: 'CPF_NOT_IN_SYSTEM',
+      });
+    }
+
+    return res.status(404).json({ error: 'Cadastro não encontrado.' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar cadastro.' });
   }
