@@ -174,9 +174,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
       if (data?.inAuthorizedList === false) {
         setMemberMessageTone('warning');
-        setMemberMessage(
-          data?.warning || 'ALERTA: CPF não faz parte do sistema (não está na lista oficial).',
-        );
+          setMemberMessage(
+            data?.warning || 'ALERTA: CPF não faz parte do sistema (não está na lista AAFAB).',
+          );
         return;
       }
 
@@ -346,7 +346,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           failed += 1;
           failures.push({
             cpf,
-            error: lookupData?.warning || 'CPF não faz parte do sistema (não está na lista oficial).',
+             error: lookupData?.warning || 'CPF não faz parte do sistema (não está na lista AAFAB).',
           });
           continue;
         }
