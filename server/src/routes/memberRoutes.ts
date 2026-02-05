@@ -5,6 +5,7 @@ import { adminAuth } from '../middleware/adminAuth';
 import { auditLog } from '../utils/logger';
 import { normalizeCpf } from '../utils/normalizeCpf';
 import { isCpfInAuthorizedList } from '../utils/authorizedCpfList';
+import { EXCLUDED_CPF_MESSAGE, isCpfExcluded } from '../utils/excludedCpfs';
 
 const router = Router();
 
@@ -15,6 +16,13 @@ router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
 
     if (!validateCPF(cleanCpf)) {
       return res.status(400).json({ error: 'CPF inválido.' });
+    }
+
+    if (isCpfExcluded(cleanCpf)) {
+      return res.status(403).json({
+        error: EXCLUDED_CPF_MESSAGE,
+        code: 'CPF_EXCLUDED',
+      });
     }
 
     // Regra: se já existe cadastro, permitir acesso ao próprio cadastro
@@ -62,6 +70,16 @@ router.get('/admin/members/:cpf', adminAuth, async (req: Request, res: Response)
       return res.status(400).json({ error: 'CPF inválido.' });
     }
 
+    if (isCpfExcluded(cleanCpf)) {
+      return res.json({
+        cpf: cleanCpf,
+        status: 'BLOCKED',
+        exists: false,
+        inAuthorizedList: false,
+        warning: EXCLUDED_CPF_MESSAGE,
+      });
+    }
+
     const inAuthorizedList = isCpfInAuthorizedList(cleanCpf);
     if (!inAuthorizedList) {
       return res.json({
@@ -102,6 +120,13 @@ router.post('/admin/members/unlock', adminAuth, async (req: Request, res: Respon
 
     if (!validateCPF(cpf)) {
       return res.status(400).json({ error: 'CPF inválido.' });
+    }
+
+    if (isCpfExcluded(cpf)) {
+      return res.status(403).json({
+        error: EXCLUDED_CPF_MESSAGE,
+        code: 'CPF_EXCLUDED',
+      });
     }
 
     if (!isCpfInAuthorizedList(cpf)) {
@@ -149,6 +174,13 @@ router.post('/admin/members/block', adminAuth, async (req: Request, res: Respons
 
     if (!validateCPF(cpf)) {
       return res.status(400).json({ error: 'CPF inválido.' });
+    }
+
+    if (isCpfExcluded(cpf)) {
+      return res.status(403).json({
+        error: EXCLUDED_CPF_MESSAGE,
+        code: 'CPF_EXCLUDED',
+      });
     }
 
     if (!isCpfInAuthorizedList(cpf)) {
