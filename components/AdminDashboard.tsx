@@ -538,6 +538,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
   const displayData = tab === 'ENVIADOS' ? filteredEnviados : filteredBase;
 
+  const handleRemoveCpfFromBase = (cpf: string) => {
+    const clean = normalizeCpf(cpf);
+    if (!validateCPF(clean)) {
+      alert('CPF inválido.');
+      return;
+    }
+
+    if (!window.confirm(`Deseja excluir o CPF ${cpf} da Base Autorizada?`)) return;
+
+    const result = DBService.removeAuthorizedCpf(clean);
+
+    if (!result?.success) {
+      alert(result?.error || 'Falha ao excluir CPF.');
+      return;
+    }
+
+    setBase(DBService.getBase());
+  };
+
   return (
     <div className="animate-in fade-in duration-500 relative">
       <div className="flex justify-between items-center mb-6">
@@ -734,6 +753,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold disabled:opacity-50"
           >
             Bloquear CPF
+          </button>
+          <button
+            onClick={() => handleRemoveCpfFromBase(memberCpf)}
+            disabled={memberLoading}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-bold disabled:opacity-50"
+            title="Remove o CPF da Base Autorizada (lista do admin)"
+            type="button"
+          >
+            Excluir CPF
           </button>
         </div>
       </div>
@@ -954,25 +982,45 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 </tr>
               )
             ) : (
-              (displayData as BaseAutorizada[]).map((u) => (
-                <tr key={u.cpf} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-gray-600">{u.cpf}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{u.nome}</td>
-                  <td className="px-4 py-3 text-gray-500">{u.estado}</td>
-                  <td className="px-4 py-3 text-gray-500">{u.turma_cesd}</td>
-                  <td className="px-4 py-3">
-                    {u.cadastro_realizado ? (
-                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                        CADASTRO REALIZADO
-                      </span>
-                    ) : (
-                      <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                        AGUARDANDO
-                      </span>
-                    )}
+              (displayData as BaseAutorizada[]).length > 0 ? (
+                (displayData as BaseAutorizada[]).map((u) => (
+                  <tr key={u.cpf} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono text-gray-600">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{u.cpf}</span>
+                        <button
+                          onClick={() => handleRemoveCpfFromBase(u.cpf)}
+                          className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline whitespace-nowrap"
+                          type="button"
+                          title="Excluir CPF da Base Autorizada"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-gray-800">{u.nome}</td>
+                    <td className="px-4 py-3 text-gray-500">{u.estado}</td>
+                    <td className="px-4 py-3 text-gray-500">{u.turma_cesd}</td>
+                    <td className="px-4 py-3">
+                      {u.cadastro_realizado ? (
+                        <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                          CADASTRO REALIZADO
+                        </span>
+                      ) : (
+                        <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                          AGUARDANDO
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center text-gray-400 italic">
+                    Nenhum CPF na base (verifique filtros ou importação).
                   </td>
                 </tr>
-              ))
+              )
             )}
           </tbody>
         </table>

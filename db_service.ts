@@ -4,6 +4,93 @@ import { getBackendUrl } from './utils';
 
 let loadedCpfs: string[] = [];
 
+const EXTRA_CPFS_STORAGE_KEY = 'authorized_cpfs_extra';
+const REMOVED_CPFS_STORAGE_KEY = 'authorized_cpfs_removed';
+
+const normalizeCpfDigits = (value: string) => String(value || '').replace(/\D/g, '');
+
+const getExtraCpfs = (): string[] => {
+  try {
+    const raw = localStorage.getItem(EXTRA_CPFS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const item of parsed) {
+      const clean = normalizeCpfDigits(item);
+      if (clean.length !== 11) continue;
+      if (seen.has(clean)) continue;
+      seen.add(clean);
+      result.push(clean);
+    }
+    return result;
+  } catch {
+    return [];
+  }
+};
+
+const setExtraCpfs = (cpfs: string[]) => {
+  localStorage.setItem(EXTRA_CPFS_STORAGE_KEY, JSON.stringify(cpfs));
+};
+
+const getRemovedCpfs = (): string[] => {
+  try {
+    const raw = localStorage.getItem(REMOVED_CPFS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const item of parsed) {
+      const clean = normalizeCpfDigits(item);
+      if (clean.length !== 11) continue;
+      if (seen.has(clean)) continue;
+      seen.add(clean);
+      result.push(clean);
+    }
+    return result;
+  } catch {
+    return [];
+  }
+};
+
+const setRemovedCpfs = (cpfs: string[]) => {
+  localStorage.setItem(REMOVED_CPFS_STORAGE_KEY, JSON.stringify(cpfs));
+};
+
+const getMergedAuthorizedCpfs = (): string[] => {
+  const official = loadedCpfs.length > 0 ? loadedCpfs : CPFS_OFICIAIS;
+  const extra = getExtraCpfs();
+  const removed = new Set(getRemovedCpfs());
+  if (extra.length === 0 && removed.size === 0) return official;
+
+  const seen = new Set<string>();
+  const merged: string[] = [];
+
+  for (const cpf of official) {
+    const clean = normalizeCpfDigits(cpf);
+    if (clean.length !== 11) continue;
+    if (removed.has(clean)) continue;
+    if (seen.has(clean)) continue;
+    seen.add(clean);
+    merged.push(clean);
+  }
+
+  for (const cpf of extra) {
+    const clean = normalizeCpfDigits(cpf);
+    if (clean.length !== 11) continue;
+    if (removed.has(clean)) continue;
+    if (seen.has(clean)) continue;
+    seen.add(clean);
+    merged.push(clean);
+  }
+
+  return merged;
+};
+
 const BACKEND_URL = getBackendUrl();
 
 // Verificar se estamos em produção
@@ -101,7 +188,7 @@ export const DBService = {
   },
 
   getBase: (): BaseAutorizada[] => {
-    const cpfs = loadedCpfs.length > 0 ? loadedCpfs : CPFS_OFICIAIS;
+    const cpfs = getMergedAuthorizedCpfs();
     const enviados = DBService.getEnviados();
     const cpfsEnviados = new Set(enviados.map((e) => e.cpf));
 
@@ -146,7 +233,7 @@ export const DBService = {
       };
     }
 
-    const cpfs = loadedCpfs.length > 0 ? loadedCpfs : CPFS_OFICIAIS;
+    const cpfs = getMergedAuthorizedCpfs();
     const isAuthorized = cpfs.includes(cleanCpf);
 
     if (!isAuthorized) {
@@ -335,14 +422,74 @@ export const DBService = {
   },
 
   updateAuthorizedBase: (
-    _newCpfs: string[],
+    newCpfs: string[],
   ): { success: boolean; count: number; error?: string } => {
-    return { success: true, count: 0 };
+    try {
+      const official = loadedCpfs.length > 0 ? loadedCpfs : CPFS_OFICIAIS;
+      const officialSet = new Set(official.map((c) => normalizeCpfDigits(c)).filter((c) => c.length === 11));
+
+      const extraSet = new Set(getExtraCpfs());
+      const removedSet = new Set(getRemovedCpfs());
+      const processed = new Set<string>();
+
+      let added = 0;
+      for (const raw of newCpfs) {
+        const clean = normalizeCpfDigits(raw);
+        if (clean.length !== 11) continue;
+        if (processed.has(clean)) continue;
+        processed.add(clean);
+
+        // Se estava removido, reabilita
+        const wasRemoved = removedSet.delete(clean);
+
+        // Se já existe (oficial ou extra), apenas contar caso tenha sido reabilitado
+        if (officialSet.has(clean) || extraSet.has(clean)) {
+          if (wasRemoved) added += 1;
+          continue;
+        }
+
+        // Novo CPF: adiciona como extra
+        extraSet.add(clean);
+        added += 1;
+      }
+
+      setExtraCpfs(Array.from(extraSet));
+      setRemovedCpfs(Array.from(removedSet));
+      return { success: true, count: added };
+    } catch (e: any) {
+      return { success: false, count: 0, error: e?.message || 'Falha ao importar CPFs.' };
+    }
+  },
+
+  removeAuthorizedCpf: (cpf: string): { success: boolean; removed: boolean; error?: string } => {
+    try {
+      const clean = normalizeCpfDigits(cpf);
+      if (clean.length !== 11) {
+        return { success: false, removed: false, error: 'CPF inválido.' };
+      }
+
+      const removedSet = new Set(getRemovedCpfs());
+      const before = removedSet.size;
+      removedSet.add(clean);
+      setRemovedCpfs(Array.from(removedSet));
+
+      // Se estava na lista extra, remove de lá também
+      const extraSet = new Set(getExtraCpfs());
+      if (extraSet.delete(clean)) {
+        setExtraCpfs(Array.from(extraSet));
+      }
+
+      return { success: true, removed: removedSet.size !== before };
+    } catch (e: any) {
+      return { success: false, removed: false, error: e?.message || 'Falha ao excluir CPF.' };
+    }
   },
 
   resetData: () => {
     localStorage.removeItem('base_autorizada');
     localStorage.removeItem('cadastros_enviados');
+    localStorage.removeItem(EXTRA_CPFS_STORAGE_KEY);
+    localStorage.removeItem(REMOVED_CPFS_STORAGE_KEY);
     DBService.init();
     window.location.reload();
   },
