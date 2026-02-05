@@ -6,6 +6,7 @@ import { validateCPF } from '../utils/cpfValidator';
 import { adminAuth } from '../middleware/adminAuth';
 import { normalizeCpf } from '../utils/normalizeCpf';
 import { isCpfInAuthorizedList } from '../utils/authorizedCpfList';
+import { EXCLUDED_CPF_MESSAGE, isCpfExcluded } from '../utils/excludedCpfs';
 
 const router = Router();
 
@@ -100,6 +101,13 @@ router.get('/consulta/:cpf', async (req: Request, res: Response) => {
 
     if (!cleanCpf || cleanCpf.length !== 11) {
       return res.status(400).json({ error: 'CPF inválido.' });
+    }
+
+    if (isCpfExcluded(cleanCpf)) {
+      return res.status(403).json({
+        error: EXCLUDED_CPF_MESSAGE,
+        code: 'CPF_EXCLUDED',
+      });
     }
 
     // Se já existe cadastro, permitir consulta (mesmo fora da lista oficial)
