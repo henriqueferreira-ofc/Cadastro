@@ -489,7 +489,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [importText, setImportText] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const handleImport = () => {
+  const handleReloadAuthorizedBase = async () => {
+    try {
+      await DBService.loadAuthorizedCPFs();
+    } catch {
+      // ignore
+    }
+    setBase(DBService.getBase());
+  };
+
+  const handleRestoreOfficialBase = async () => {
+    const ok = window.confirm(
+      'Isso vai restaurar a Base Autorizada para a lista oficial (ENVIAR.csv), removendo importações/exclusões feitas neste navegador. Deseja continuar?',
+    );
+    if (!ok) return;
+
+    DBService.clearAuthorizedBaseOverrides();
+    await handleReloadAuthorizedBase();
+  };
+
+  const handleImport = async () => {
     if (!importText.trim()) return;
 
     // Improved split logic: split by newlines, commas, semicolons to preserve formatting
@@ -508,14 +527,58 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
     const result = DBService.updateAuthorizedBase(rawCpfs);
 
+    // Também registra no servidor (Member BLOCKED) para que o front público trate como "bloqueado".
+    // Se o backend não estiver disponível, a base do admin ainda será atualizada localmente.
+    let serverInfo: null | { imported: number; received?: number; invalid?: number; excluded?: number } = null;
+    let serverWarning: string | null = null;
+
+    const token = localStorage.getItem('admin_token');
+    if (token) {
+      try {
+        const resp = await fetch(`${backendUrl}/auth/admin/members/import`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ cpfs: rawCpfs }),
+        });
+
+        if (resp.ok) {
+          serverInfo = (await resp.json()) as any;
+        } else {
+          const err = await resp.json().catch(() => ({}) as any);
+          if (resp.status === 401) {
+            localStorage.removeItem('admin_token');
+            serverWarning = 'Sessão admin expirada no servidor. Faça login novamente e reimporte.';
+          } else if (resp.status === 404) {
+            serverWarning =
+              'Backend desatualizado: rota de importação não existe no servidor. Refaça o deploy do backend (Render) para que CPFs importados apareçam como BLOQUEADOS no acesso público.';
+          } else {
+            serverWarning = err?.error || `Falha ao registrar CPFs no servidor (HTTP ${resp.status}).`;
+          }
+        }
+      } catch {
+        serverWarning = 'Servidor indisponível para registrar CPFs (importação ficará só no admin).';
+      }
+    } else {
+      serverWarning = 'Sem sessão admin no servidor (importação ficará só no admin).';
+    }
+
     if (result.success) {
       const skipped = rawCpfs.length - result.count;
+      const serverLine = serverInfo
+        ? `\n\nServidor (bloqueados): ${serverInfo.imported ?? 0} registrados.`
+        : serverWarning
+          ? `\n\n⚠️ ${serverWarning}`
+          : '';
       alert(
         `Relatório de Importação:\n\n` +
           `✅ Adicionados com sucesso: ${result.count}\n` +
           `⚠️ Ignorados (Duplicados ou Inválidos): ${skipped}\n` +
           `   - O sistema removeu automaticamente duplicatas.\n\n` +
-          `Total na base agora: ${DBService.getBase().length}`,
+          `Total na base agora: ${DBService.getBase().length}` +
+          serverLine,
       );
       setBase(DBService.getBase());
       setImportText('');
@@ -931,10 +994,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
             />
             <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
           </div>
-          <div className="ml-4 text-[10px] text-gray-400 font-mono">
-            {tab === 'BASE'
-              ? `${filteredBase.length} de ${base.length} CPFs autorizados`
-              : `${filteredEnviados.length} envios encontrados`}
+          <div className="ml-4 flex items-center gap-3">
+            {tab === 'BASE' && (
+              <>
+                <button
+                  onClick={handleReloadAuthorizedBase}
+                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition"
+                  title="Recarrega a base oficial (ENVIAR.csv) e atualiza a contagem"
+                >
+                  Recarregar Base
+                </button>
+                <button
+                  onClick={handleRestoreOfficialBase}
+                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition"
+                  title="Remove importações/exclusões locais e volta para a base oficial"
+                >
+                  Restaurar Base Oficial
+                </button>
+              </>
+            )}
+
+            <div className="text-[10px] text-gray-400 font-mono text-right">
+              {tab === 'BASE' ? (
+                (() => {
+                  const c = DBService.getBaseCounts();
+                  const origem = c.isOfficialLoadedFromNetwork ? 'CSV/JSON' : 'EMBUTIDA';
+                  return (
+                    <>
+                      <div>{`${filteredBase.length} de ${base.length} CPFs autorizados`}</div>
+                      <div>{`Oficial: ${c.officialCount} | Importados: ${c.extraCount} | Removidos: ${c.removedCount} | Origem: ${origem}`}</div>
+                    </>
+                  );
+                })()
+              ) : (
+                `${filteredEnviados.length} envios encontrados`
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -156,7 +156,8 @@ export const DBService = {
       };
 
       // Fonte única: CSV publicado em /public
-      const csvResponse = await fetch('/ENVIAR.csv');
+      // Usa no-store para evitar cache do navegador durante atualizações.
+      const csvResponse = await fetch('/ENVIAR.csv', { cache: 'no-store' });
       if (!csvResponse.ok) throw new Error('Falha ao carregar base de CPFs');
 
       const csvText = await csvResponse.text();
@@ -168,7 +169,7 @@ export const DBService = {
 
       // Fallback: tenta carregar JSON (public/authorized_cpfs.json)
       try {
-        const jsonResponse = await fetch('/authorized_cpfs.json');
+        const jsonResponse = await fetch('/authorized_cpfs.json', { cache: 'no-store' });
         if (jsonResponse.ok) {
           const jsonData = (await jsonResponse.json()) as unknown;
           const cpfs = parseJsonCpfArray(jsonData);
@@ -200,6 +201,32 @@ export const DBService = {
       rg: 'N/A',
       cadastro_realizado: cpfsEnviados.has(cpf),
     }));
+  },
+
+  getBaseCounts: (): {
+    officialCount: number;
+    extraCount: number;
+    removedCount: number;
+    mergedCount: number;
+    isOfficialLoadedFromNetwork: boolean;
+  } => {
+    const official = loadedCpfs.length > 0 ? loadedCpfs : CPFS_OFICIAIS;
+    const extra = getExtraCpfs();
+    const removed = getRemovedCpfs();
+    const merged = getMergedAuthorizedCpfs();
+
+    return {
+      officialCount: official.length,
+      extraCount: extra.length,
+      removedCount: removed.length,
+      mergedCount: merged.length,
+      isOfficialLoadedFromNetwork: loadedCpfs.length > 0,
+    };
+  },
+
+  clearAuthorizedBaseOverrides: (): void => {
+    localStorage.removeItem(EXTRA_CPFS_STORAGE_KEY);
+    localStorage.removeItem(REMOVED_CPFS_STORAGE_KEY);
   },
 
   getEnviados: (): CadastroEnviado[] => {
