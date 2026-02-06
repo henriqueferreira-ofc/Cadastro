@@ -32,17 +32,16 @@ router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
       return res.json({ cpf: cleanCpf, eligible: true, status: 'REGISTERED', hasCadastro: true });
     }
 
-    // CPFs importados pelo admin entram como Member (BLOCKED) e devem ser tratados como "no sistema"
-    const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
-    const inAuthorizedList = isCpfInAuthorizedList(cleanCpf);
-
-    // Se não está na lista oficial e não existe no banco (Member), então não faz parte do sistema
-    if (!inAuthorizedList && !member) {
+    // Regra: qualquer CPF fora da Base Autorizada NÃO faz parte do sistema.
+    // (Mesmo que exista Member antigo/importado; a lista oficial é a fonte de verdade.)
+    if (!isCpfInAuthorizedList(cleanCpf)) {
       return res.status(403).json({
         error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
         code: 'CPF_NOT_IN_SYSTEM',
       });
     }
+
+    const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
 
     if (!member || member.status !== 'ACTIVE') {
       return res.json({
@@ -84,10 +83,9 @@ router.get('/admin/members/:cpf', adminAuth, async (req: Request, res: Response)
     }
 
     const inAuthorizedList = isCpfInAuthorizedList(cleanCpf);
-    const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
 
-    // Se não está na lista oficial e não existe Member, então não faz parte do sistema
-    if (!inAuthorizedList && !member) {
+    // Regra: para o admin, qualquer CPF fora da Base Autorizada deve aparecer como "não faz parte do sistema".
+    if (!inAuthorizedList) {
       return res.json({
         cpf: cleanCpf,
         status: 'BLOCKED',
@@ -96,6 +94,8 @@ router.get('/admin/members/:cpf', adminAuth, async (req: Request, res: Response)
         warning: 'CPF não faz parte do sistema (não está na lista AAFAB).',
       });
     }
+
+    const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
 
     if (!member) {
       // Está na lista oficial, mas ainda não tem registro Member (fica bloqueado)
@@ -194,14 +194,14 @@ router.post('/admin/members/unlock', adminAuth, async (req: Request, res: Respon
     }
 
     const inAuthorizedList = isCpfInAuthorizedList(cpf);
-    const existing = await prisma.member.findUnique({ where: { cpf } });
-    const inSystem = inAuthorizedList || Boolean(existing);
-    if (!inSystem) {
+    if (!inAuthorizedList) {
       return res.status(403).json({
         error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
         code: 'CPF_NOT_IN_SYSTEM',
       });
     }
+
+    const existing = await prisma.member.findUnique({ where: { cpf } });
 
     // Se já estiver liberado, não sobrescrever data/hora de liberação
     if (existing && existing.status === 'ACTIVE') {
@@ -250,14 +250,14 @@ router.post('/admin/members/block', adminAuth, async (req: Request, res: Respons
     }
 
     const inAuthorizedList = isCpfInAuthorizedList(cpf);
-    const existing = await prisma.member.findUnique({ where: { cpf } });
-    const inSystem = inAuthorizedList || Boolean(existing);
-    if (!inSystem) {
+    if (!inAuthorizedList) {
       return res.status(403).json({
         error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
         code: 'CPF_NOT_IN_SYSTEM',
       });
     }
+
+    const existing = await prisma.member.findUnique({ where: { cpf } });
 
     const member = await prisma.member.upsert({
       where: { cpf },
