@@ -10,6 +10,7 @@ interface AdminAuthModalProps {
 const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const backendUrl = getBackendUrl();
   const isLocalhost =
@@ -18,38 +19,66 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
+
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs: number) => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, { ...init, signal: controller.signal });
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    };
 
     try {
-      // Tentar sempre o backend primeiro para obter o token real (JWT)
-      const response = await fetch(`${backendUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
+      // Render (plano free) pode hibernar. Em produção, tentamos algumas vezes antes de falhar.
+      const maxAttempts = isLocalhost ? 1 : 5;
+      const retryDelaysMs = [0, 1500, 2500, 4000, 6000];
 
-      const data = await response.json().catch(() => ({}) as any);
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        if (attempt > 0) await sleep(retryDelaysMs[Math.min(attempt, retryDelaysMs.length - 1)]);
 
-      if (response.ok && data?.success && data?.token) {
-        // Sucesso com o backend (JWT real)
-        localStorage.setItem('admin_token', data.token);
-        onSuccess();
-        onClose();
-        return;
-      }
-
-      // Em produção, não podemos cair no token local (backend sempre exige JWT)
-      if (!isLocalhost) {
-        setError(
-          data?.error ||
-            'Acesso negado (401). Verifique a senha do admin no Render (ADMIN_PASSWORD).',
+        // Tentar sempre o backend primeiro para obter o token real (JWT)
+        const response = await fetchWithTimeout(
+          `${backendUrl}/auth/login`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+          },
+          10_000,
         );
-        return;
+
+        const data = await response.json().catch(() => ({}) as any);
+
+        if (response.ok && data?.success && data?.token) {
+          // Sucesso com o backend (JWT real)
+          localStorage.setItem('admin_token', data.token);
+          onSuccess();
+          onClose();
+          return;
+        }
+
+        // Se for erro de servidor/transiente, tentar novamente (provável cold start)
+        const shouldRetry = !response.ok && response.status >= 500 && response.status <= 599;
+        if (shouldRetry && attempt < maxAttempts - 1) continue;
+
+        // Em produção, não podemos cair no token local (backend sempre exige JWT)
+        if (!isLocalhost) {
+          setError(
+            data?.error ||
+              'Acesso negado (401). Verifique a senha do admin no Render (ADMIN_PASSWORD).',
+          );
+          return;
+        }
       }
     } catch (err) {
       console.log('Backend indisponível para login, tentando acesso local...');
       if (!isLocalhost) {
         setError(
-          'Servidor indisponível. O site precisa acessar a API (Render) para liberar o painel.',
+          'Servidor indisponível. No plano free do Render a API pode demorar 30–60s para iniciar. Aguarde e tente novamente.',
         );
         return;
       }
@@ -68,6 +97,17 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
 
     setError('Senha incorreta.');
     setPassword('');
+    return;
+  };
+
+  // Garante que o loading sempre seja finalizado, mesmo com retornos antecipados
+  // (feito via wrapper abaixo para manter o handleSubmit legível)
+  const handleSubmitWithFinally = async (e: React.FormEvent) => {
+    try {
+      await handleSubmit(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -94,7 +134,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
             Informe a senha administrativa para acessar o painel.
           </p>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmitWithFinally}>
             <div className="space-y-4">
               <div>
                 <input
@@ -118,9 +158,10 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
 
               <button
                 type="submit"
+                disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center space-x-2"
               >
-                <span>Acessar Painel</span>
+                <span>{loading ? 'Conectando...' : 'Acessar Painel'}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
