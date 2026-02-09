@@ -97,6 +97,51 @@ const BACKEND_URL = getBackendUrl();
 const isProduction =
   window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs: number) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
+const fetchJsonWithRetry = async <T>(
+  url: string,
+  init: RequestInit,
+  opts: { timeoutMs: number; attempts: number; retryDelaysMs?: number[] },
+): Promise<{ response: Response; data: T | null }> => {
+  const retryDelaysMs = opts.retryDelaysMs ?? [0, 1500, 2500, 4000];
+  const attempts = Math.max(1, opts.attempts);
+
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await sleep(retryDelaysMs[Math.min(attempt, retryDelaysMs.length - 1)]);
+
+    try {
+      const response = await fetchWithTimeout(url, init, opts.timeoutMs);
+      const data = (await response.json().catch(() => null)) as T | null;
+
+      // Retry apenas em 5xx (servidor aquecendo/instável)
+      if (!response.ok && response.status >= 500 && response.status <= 599 && attempt < attempts - 1) {
+        continue;
+      }
+
+      return { response, data };
+    } catch (e) {
+      lastError = e;
+      if (attempt < attempts - 1) continue;
+      throw lastError;
+    }
+  }
+
+  // unreachable, mas mantém TS feliz
+  throw lastError;
+};
+
 type EligibilityResponse = {
   cpf: string;
   eligible: boolean;
@@ -284,10 +329,14 @@ export const DBService = {
     const cleanCpf = cpf.replace(/\D/g, '');
 
     try {
-      const response = await fetch(`${BACKEND_URL}/auth/eligibility/${cleanCpf}`);
+      const { response, data } = await fetchJsonWithRetry<any>(
+        `${BACKEND_URL}/auth/eligibility/${cleanCpf}`,
+        { method: 'GET' },
+        { timeoutMs: 12_000, attempts: isProduction ? 4 : 1 },
+      );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}) as any);
+        const errorData = data || ({} as any);
         return {
           success: false,
           error: errorData?.error || 'Não foi possível validar o CPF.',
@@ -295,7 +344,7 @@ export const DBService = {
         };
       }
 
-      const eligibility = (await response.json()) as EligibilityResponse;
+      const eligibility = (data || ({} as any)) as EligibilityResponse;
 
       if (!eligibility.eligible) {
         return {
@@ -327,7 +376,8 @@ export const DBService = {
       if (isProduction) {
         return {
           success: false,
-          error: 'Servidor indisponível no momento. Tente novamente em instantes.',
+          error:
+            'Servidor indisponível no momento. No plano free do Render a API pode demorar 30–60s para iniciar. Aguarde e tente novamente.',
         };
       }
 
@@ -430,7 +480,11 @@ export const DBService = {
   getCadastroFromBackend: async (cpf: string): Promise<CadastroEnviado | null> => {
     try {
       const cleanCpf = cpf.replace(/\D/g, '');
-      const response = await fetch(`${BACKEND_URL}/cadastro/consulta/${cleanCpf}`);
+      const { response, data } = await fetchJsonWithRetry<any>(
+        `${BACKEND_URL}/cadastro/consulta/${cleanCpf}`,
+        { method: 'GET' },
+        { timeoutMs: 12_000, attempts: isProduction ? 3 : 1 },
+      );
 
       if (!response.ok) {
         // Se estiver bloqueado, não retorna dados
@@ -440,11 +494,20 @@ export const DBService = {
         return null;
       }
 
-      const data = await response.json();
-      return data;
+      return data as CadastroEnviado;
     } catch (error) {
       console.error('Erro ao buscar cadastro do backend:', error);
       return null;
+    }
+  },
+
+  prewarmBackend: async (): Promise<void> => {
+    if (!isProduction) return;
+    try {
+      const origin = BACKEND_URL.replace(/\/api\/?$/, '');
+      await fetchWithTimeout(`${origin}/health`, { method: 'GET' }, 10_000);
+    } catch {
+      // ignore
     }
   },
 
