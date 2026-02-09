@@ -32,14 +32,14 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
       }
     };
 
-    try {
-      // Render (plano free) pode hibernar. Em produção, tentamos algumas vezes antes de falhar.
-      const maxAttempts = isLocalhost ? 1 : 5;
-      const retryDelaysMs = [0, 1500, 2500, 4000, 6000];
+    // Render (plano free) pode hibernar. Em produção, tentamos algumas vezes antes de falhar.
+    const maxAttempts = isLocalhost ? 1 : 6;
+    const retryDelaysMs = [0, 1500, 2500, 4000, 6000, 8000];
 
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        if (attempt > 0) await sleep(retryDelaysMs[Math.min(attempt, retryDelaysMs.length - 1)]);
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (attempt > 0) await sleep(retryDelaysMs[Math.min(attempt, retryDelaysMs.length - 1)]);
 
+      try {
         // Tentar sempre o backend primeiro para obter o token real (JWT)
         const response = await fetchWithTimeout(
           `${backendUrl}/auth/login`,
@@ -48,7 +48,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password }),
           },
-          10_000,
+          12_000,
         );
 
         const data = await response.json().catch(() => ({}) as any);
@@ -73,18 +73,23 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
           );
           return;
         }
-      }
-    } catch (err) {
-      console.log('Backend indisponível para login, tentando acesso local...');
-      if (!isLocalhost) {
+      } catch (err) {
+        // Falha de rede/timeout durante cold start: tentar novamente.
+        console.log('Backend indisponível para login (rede/timeout), tentando novamente...');
+        if (attempt < maxAttempts - 1) continue;
+
+        if (!isLocalhost) {
+          setError(
+            'Servidor indisponível. No plano free do Render a API pode demorar 30–60s para iniciar. Aguarde e tente novamente.',
+          );
+          return;
+        }
+
         setError(
-          'Servidor indisponível. No plano free do Render a API pode demorar 30–60s para iniciar. Aguarde e tente novamente.',
+          'Servidor indisponível. Inicie o backend para ver os dados do banco (ex: npm run dev:all).',
         );
         return;
       }
-      setError(
-        'Servidor indisponível. Inicie o backend para ver os dados do banco (ex: npm run dev:all).',
-      );
     }
 
     // Fallback local apenas em localhost (dev)
