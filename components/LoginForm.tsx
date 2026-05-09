@@ -64,6 +64,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
           </p>
         </div>
 
+        <div className="bg-green-50 border border-green-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-6 sm:mb-8">
+          <div className="flex items-start gap-2 sm:gap-3">
+            <div className="flex-shrink-0 text-green-600 font-bold text-lg">✓</div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-green-900 mb-1">
+                Já se cadastrou? Nenhum problema!
+              </h4>
+              <p className="text-xs sm:text-sm text-green-800">
+                Você pode acessar o sistema a qualquer momento para <strong>editar e atualizar</strong> seus dados.
+                Cometeu um erro no nome ou em qualquer outro campo? Basta fazer login novamente com seu CPF!
+              </p>
+            </div>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
           <div className="relative">
             <label htmlFor="cpf" className="block text-sm font-semibold text-gray-700 mb-2">

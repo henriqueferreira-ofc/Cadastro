@@ -1,11 +1,12 @@
 import React from 'react';
-import { CheckCircle, ArrowLeft } from 'lucide-react';
+import { CheckCircle, ArrowLeft, Edit3 } from 'lucide-react';
 
 interface SuccessScreenProps {
   onRestart: () => void;
+  onEdit: () => void;
 }
 
-const SuccessScreen: React.FC<SuccessScreenProps> = ({ onRestart }) => {
+const SuccessScreen: React.FC<SuccessScreenProps> = ({ onRestart, onEdit }) => {
   return (
     <div className="bg-white rounded-lg sm:rounded-2xl shadow-lg sm:shadow-xl p-6 sm:p-12 text-center animate-in zoom-in duration-500">
       <div className="flex justify-center mb-4 sm:mb-6">
@@ -29,17 +30,36 @@ const SuccessScreen: React.FC<SuccessScreenProps> = ({ onRestart }) => {
         <ul className="text-xs sm:text-sm text-blue-800 space-y-2 list-disc list-inside">
           <li>Seu CPF foi marcado como "Atualizado".</li>
           <li>Os dados serão revisados pela administração.</li>
-          <li>Não é necessário realizar este processo novamente.</li>
+          <li>Você pode editar seus dados a qualquer momento.</li>
         </ul>
       </div>
 
-      <button
-        onClick={onRestart}
-        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-bold transition-all group text-sm sm:text-base"
-      >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-        <span>Sair do Sistema</span>
-      </button>
+      <div className="bg-green-50 border border-green-200 rounded-lg sm:rounded-xl p-4 sm:p-6 mb-6 sm:mb-8 text-left max-w-md mx-auto">
+        <h4 className="text-xs sm:text-sm font-bold text-green-900 mb-2 uppercase tracking-tight">
+          💡 Dica: Cometeu algum erro?
+        </h4>
+        <p className="text-xs sm:text-sm text-green-800 mb-4">
+          Você pode editar seus dados (como nome, telefone, etc.) clicando no botão abaixo. As
+          alterações serão salvas imediatamente.
+        </p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+        <button
+          onClick={onEdit}
+          className="inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 sm:py-3 px-4 sm:px-6 rounded-lg transition-all text-sm sm:text-base shadow-md shadow-green-200"
+        >
+          <Edit3 className="w-4 h-4" />
+          <span>Editar Dados</span>
+        </button>
+        <button
+          onClick={onRestart}
+          className="inline-flex items-center justify-center gap-2 text-blue-600 hover:text-blue-800 font-bold transition-all text-sm sm:text-base"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Sair do Sistema</span>
+        </button>
+      </div>
     </div>
   );
 };

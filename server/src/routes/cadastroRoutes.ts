@@ -49,9 +49,12 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'CPF inválido.' });
     }
 
-    // Regra de acesso: CPF precisa estar liberado (Member.status = ACTIVE)
+    const existingCadastro = await prisma.cadastro.findUnique({ where: { cpf: cleanCpf } });
+
+    // Regra de acesso: novo cadastro precisa estar liberado (Member.status = ACTIVE).
+    // Quem já possui cadastro pode atualizar os próprios dados.
     const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
-    if (!member || member.status !== 'ACTIVE') {
+    if (!existingCadastro && (!member || member.status !== 'ACTIVE')) {
       return res
         .status(403)
         .json({ error: 'CPF bloqueado. Procure o responsável para liberação.' });

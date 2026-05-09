@@ -399,7 +399,8 @@ export const DBService = {
         });
 
         if (result.ok) {
-          const backendData = await result.json();
+          const responseData = await result.json();
+          const backendData = responseData?.data || responseData;
 
           // Sincronizar com localStorage para visualização rápida posterior
           const enviados = DBService.getEnviados();
