@@ -1,12 +1,10 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import cadastroRoutes from './routes/cadastroRoutes';
 import authRoutes from './routes/authRoutes';
 import memberRoutes from './routes/memberRoutes';
-
-dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3001;
