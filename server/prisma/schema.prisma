@@ -14,14 +14,19 @@ enum MemberStatus {
 }
 
 model Member {
-  id         Int          @id @default(autoincrement())
-  cpf        String       @unique
-  status     MemberStatus @default(BLOCKED)
-  unlockedAt DateTime?
-  unlockedBy String?
-  notes      String?
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  id                  Int          @id @default(autoincrement())
+  cpf                 String       @unique
+  status              MemberStatus @default(BLOCKED)
+  unlockedAt          DateTime?
+  unlockedBy          String?
+  notes               String?
+  accessCodeHash      String?
+  accessCodeExpiresAt DateTime?
+  accessCodeUsedAt    DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([accessCodeExpiresAt])
 }
 
 model Cadastro {

@@ -1,9 +1,11 @@
-import fs from 'fs';
-import path from 'path';
-
-const LOG_FILE = path.join(__dirname, '../../audit.log');
-
 export const auditLog = (action: string, details: string) => {
-  const entry = `${new Date().toISOString()} | ${action} | ${details}\n`;
-  fs.appendFileSync(LOG_FILE, entry);
+  const safeDetails = details.replace(/\b\d{11}\b/g, '[CPF OMITIDO]').slice(0, 500);
+  console.info(
+    JSON.stringify({
+      timestamp: new Date().toISOString(),
+      type: 'AUDIT',
+      action,
+      details: safeDetails,
+    }),
+  );
 };

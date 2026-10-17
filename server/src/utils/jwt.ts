@@ -1,16 +1,47 @@
 import jwt from 'jsonwebtoken';
+import { config } from '../config';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'aafab_jwt_secret_change_in_production';
-const JWT_EXPIRES_IN = '24h';
+const issuer = 'aafab-api';
+const audience = 'aafab-web';
 
 export const generateToken = (payload: { role: string }): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign({ ...payload, scope: 'admin' }, config.jwtSecret, {
+    algorithm: 'HS256',
+    expiresIn: '30m',
+    issuer,
+    audience,
+  });
 };
 
-export const verifyToken = (token: string): any => {
+export interface AuthTokenPayload extends jwt.JwtPayload {
+  role?: string;
+  scope?: string;
+  memberId?: number;
+  cpf?: string;
+  codeHash?: string;
+}
+
+export const generateRegistrationToken = (payload: {
+  memberId: number;
+  cpf: string;
+  codeHash: string;
+}): string =>
+  jwt.sign({ ...payload, scope: 'registration' }, config.jwtSecret, {
+    algorithm: 'HS256',
+    expiresIn: '15m',
+    issuer,
+    audience,
+  });
+
+export const verifyToken = (token: string): AuthTokenPayload | null => {
   try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
+    const decoded = jwt.verify(token, config.jwtSecret, {
+      algorithms: ['HS256'],
+      issuer,
+      audience,
+    });
+    return typeof decoded === 'string' ? null : decoded;
+  } catch {
     return null;
   }
 };

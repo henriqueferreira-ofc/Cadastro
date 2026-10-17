@@ -13,11 +13,8 @@ const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('AUTH');
   const [activeUser, setActiveUser] = useState<BaseAutorizada | null>(null);
   const [showAdminAuth, setShowAdminAuth] = useState(false);
-  const [forceReloadForm, setForceReloadForm] = useState(false);
 
   useEffect(() => {
-    DBService.init();
-    DBService.loadAuthorizedCPFs();
     DBService.prewarmBackend();
   }, []);
 
@@ -27,19 +24,12 @@ const App: React.FC = () => {
   };
 
   const handleRegistrationSuccess = () => {
-    setForceReloadForm(false);
     setView('SUCCESS');
-  };
-
-  const handleEdit = () => {
-    setForceReloadForm(true);
-    setView('FORM');
   };
 
   const resetFlow = () => {
     setActiveUser(null);
     setView('AUTH');
-    setForceReloadForm(false);
   };
 
   return (
@@ -74,11 +64,10 @@ const App: React.FC = () => {
             <RegistrationForm
               user={activeUser}
               onSuccess={handleRegistrationSuccess}
-              forceReload={forceReloadForm}
               onCancel={resetFlow}
             />
           )}
-          {view === 'SUCCESS' && <SuccessScreen onRestart={resetFlow} onEdit={handleEdit} />}
+          {view === 'SUCCESS' && <SuccessScreen onRestart={resetFlow} />}
           {view === 'ADMIN' && <AdminDashboard onBack={resetFlow} />}
         </div>
       </main>

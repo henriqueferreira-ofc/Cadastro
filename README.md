@@ -1,38 +1,33 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Portal AAFAB
 
-[![Deploy Status](https://github.com/henriqueferreira-ofc/Cadastro/actions/workflows/deploy.yml/badge.svg)](https://github.com/henriqueferreira-ofc/Cadastro/actions/workflows/deploy.yml)
+Aplicação web para cadastro dos associados, com frontend React/Vite e API Express/Prisma.
 
-# Status do Deploy
+## Desenvolvimento local
 
-Publicação automática para GitHub Pages via workflow `.github/workflows/deploy.yml`.
+1. Instale as dependências com `npm install` e `npm --prefix server install`.
+2. Copie `server/.env.example` para `server/.env` e preencha as variáveis reais.
+3. Execute `npm run dev:all`.
+4. Abra `http://localhost:3000`. A porta `3001` é exclusiva da API; por isso, acessar sua raiz diretamente exibe apenas uma resposta de rota inexistente.
 
-# Cadastro
+O backend se recusa a iniciar quando `DATABASE_URL`, `ADMIN_PASSWORD` ou `JWT_SECRET` estão ausentes ou fracos. O frontend usa `VITE_API_URL` quando configurado e usa `http://localhost:3001/api` no desenvolvimento local.
 
-Este repositório contém a aplicação de cadastro.
+## Acesso ao primeiro cadastro
 
-## Como executar
+O CPF precisa existir na tabela `Member`. Pelo painel administrativo, o responsável libera esse CPF e recebe um código de oito dígitos, válido por 24 horas e uma única utilização. O associado usa CPF e código para iniciar o cadastro.
 
-1. Clone o repositório.
-2. Navegue até a pasta do projeto.
-3. Execute `npm install` para instalar as dependências.
-4. Execute `npm run dev` para iniciar o servidor local.
+A base de CPFs não é publicada no frontend. Cadastros existentes também não podem ser consultados ou alterados por uma rota pública.
 
-## Estrutura do projeto
+## Verificação
 
-- `index.html`: O arquivo HTML principal.
-- `index.css`: O arquivo de estilos.
-- `src-image-declarations.d.ts`: Declarações de tipos para imagens.
-- `components/`: Contém os componentes React.
-- `public/`: Contém arquivos públicos como JSON e CSV.
+```bash
+npm run typecheck
+npm run build
+npm --prefix server run typecheck
+npm --prefix server run test:security
+```
 
-## Lista de CPFs (fonte única)
+O teste de segurança cria e remove um schema temporário no PostgreSQL configurado em `server/.env`; não altera as tabelas da aplicação.
 
-- A lista oficial de CPFs fica em [public/ENVIAR.csv](public/ENVIAR.csv).
-- O sistema carrega essa lista em runtime via `DBService.loadAuthorizedCPFs()`.
-- Os arquivos `authorized_cpfs.json` (e cópias em `public/` e `docs/`) foram descontinuados para evitar divergência.
+## Publicação
 
-## Contribuição
-
-Sinta-se à vontade para contribuir com melhorias!
+O frontend é publicado pelo workflow `.github/workflows/deploy.yml`. A API é publicada pelo Render usando `render.yaml`. Migrações e alterações de variáveis devem ser concluídas antes de publicar uma versão que dependa delas.

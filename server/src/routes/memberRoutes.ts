@@ -4,277 +4,237 @@ import { validateCPF } from '../utils/cpfValidator';
 import { adminAuth } from '../middleware/adminAuth';
 import { auditLog } from '../utils/logger';
 import { normalizeCpf } from '../utils/normalizeCpf';
-import { isCpfInAuthorizedList } from '../utils/authorizedCpfList';
-import { EXCLUDED_CPF_MESSAGE, isCpfExcluded } from '../utils/excludedCpfs';
+import { generateAccessCode, hashAccessCode } from '../utils/registrationCode';
 
 const router = Router();
+const codeLifetimeMs = 24 * 60 * 60 * 1000;
 
-// Público: checa se CPF está liberado
-router.get('/eligibility/:cpf', async (req: Request, res: Response) => {
+const publicMember = (member: {
+  cpf: string;
+  status: string;
+  unlockedAt: Date | null;
+  unlockedBy: string | null;
+  notes: string | null;
+  updatedAt: Date;
+}) => ({
+  cpf: member.cpf,
+  status: member.status,
+  unlockedAt: member.unlockedAt,
+  unlockedBy: member.unlockedBy,
+  notes: member.notes,
+  updatedAt: member.updatedAt,
+});
+
+// Compatibilidade temporária: a consulta antiga não expõe situação nem dados pessoais.
+router.get('/eligibility/:cpf', (_req: Request, res: Response) =>
+  res.status(410).json({
+    error: 'Use o acesso seguro com CPF e código temporário fornecido pela AAFAB.',
+    code: 'SECURE_ACCESS_REQUIRED',
+  }),
+);
+
+router.get('/admin/members', adminAuth, async (_req: Request, res: Response) => {
   try {
-    const cleanCpf = normalizeCpf(req.params.cpf || '');
-
-    if (!validateCPF(cleanCpf)) {
-      return res.status(400).json({ error: 'CPF inválido.' });
-    }
-
-    if (isCpfExcluded(cleanCpf)) {
-      return res.status(403).json({
-        error: EXCLUDED_CPF_MESSAGE,
-        code: 'CPF_EXCLUDED',
-      });
-    }
-
-    // Regra: se já existe cadastro, permitir acesso ao próprio cadastro
-    // (mesmo que o CPF não esteja mais na lista oficial)
-    const existingCadastro = await prisma.cadastro.findUnique({ where: { cpf: cleanCpf } });
-    if (existingCadastro) {
-      return res.json({ cpf: cleanCpf, eligible: true, status: 'REGISTERED', hasCadastro: true });
-    }
-
-    // Regra: qualquer CPF fora da Base Autorizada NÃO faz parte do sistema.
-    // (Mesmo que exista Member antigo/importado; a lista oficial é a fonte de verdade.)
-    if (!isCpfInAuthorizedList(cleanCpf)) {
-      return res.status(403).json({
-        error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
-        code: 'CPF_NOT_IN_SYSTEM',
-      });
-    }
-
-    const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
-
-    if (!member || member.status !== 'ACTIVE') {
-      return res.json({
-        cpf: cleanCpf,
-        eligible: false,
-        status: member?.status ?? 'BLOCKED',
-        hasCadastro: false,
-      });
-    }
-
-    return res.json({
-      cpf: cleanCpf,
-      eligible: true,
-      status: member.status,
-      unlockedAt: member.unlockedAt,
-      hasCadastro: false,
-    });
-  } catch (error) {
-    return res.status(500).json({ error: 'Erro ao verificar elegibilidade.' });
+    const [members, cadastros] = await Promise.all([
+      prisma.member.findMany({ orderBy: { cpf: 'asc' }, take: 5000 }),
+      prisma.cadastro.findMany({
+        select: { cpf: true, nome: true, estado: true, turma_cesd: true, rg: true },
+      }),
+    ]);
+    const cadastroByCpf = new Map(cadastros.map((cadastro) => [cadastro.cpf, cadastro]));
+    return res.json(
+      members.map((member) => {
+        const cadastro = cadastroByCpf.get(member.cpf);
+        return {
+          cpf: member.cpf,
+          nome: cadastro?.nome || 'AUTORIZAÇÃO SEM CADASTRO',
+          estado: cadastro?.estado || '',
+          turma_cesd: cadastro?.turma_cesd || '',
+          rg: cadastro?.rg || '',
+          cadastro_realizado: !!cadastro,
+          status: member.status,
+        };
+      }),
+    );
+  } catch {
+    return res.status(500).json({ error: 'Erro ao listar autorizações.' });
   }
 });
 
-// Admin: busca status de um CPF
 router.get('/admin/members/:cpf', adminAuth, async (req: Request, res: Response) => {
   try {
-    const cleanCpf = normalizeCpf(req.params.cpf || '');
-    if (!validateCPF(cleanCpf)) {
-      return res.status(400).json({ error: 'CPF inválido.' });
-    }
-
-    if (isCpfExcluded(cleanCpf)) {
-      return res.json({
-        cpf: cleanCpf,
-        status: 'BLOCKED',
-        exists: false,
-        inAuthorizedList: false,
-        warning: EXCLUDED_CPF_MESSAGE,
-      });
-    }
-
-    const inAuthorizedList = isCpfInAuthorizedList(cleanCpf);
-
-    // Regra: para o admin, qualquer CPF fora da Base Autorizada deve aparecer como "não faz parte do sistema".
-    if (!inAuthorizedList) {
-      return res.json({
-        cpf: cleanCpf,
-        status: 'BLOCKED',
-        exists: false,
-        inAuthorizedList: false,
-        warning: 'CPF não faz parte do sistema (não está na lista AAFAB).',
-      });
-    }
-
-    const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
-
+    const cpf = normalizeCpf(req.params.cpf || '');
+    if (!validateCPF(cpf)) return res.status(400).json({ error: 'CPF inválido.' });
+    const member = await prisma.member.findUnique({ where: { cpf } });
     if (!member) {
-      // Está na lista oficial, mas ainda não tem registro Member (fica bloqueado)
-      return res.json({ cpf: cleanCpf, status: 'BLOCKED', exists: false, inAuthorizedList: true });
+      return res.json({
+        cpf,
+        status: 'BLOCKED',
+        exists: false,
+        inAuthorizedList: false,
+        warning: 'CPF não cadastrado na base de autorizações da AAFAB.',
+      });
     }
-
     return res.json({
       cpf: member.cpf,
       status: member.status,
       exists: true,
-      // Para o admin, treat "inAuthorizedList" como "no sistema" (lista oficial OU importado)
-      // para permitir liberação/bloqueio.
       inAuthorizedList: true,
       unlockedAt: member.unlockedAt,
       unlockedBy: member.unlockedBy,
       notes: member.notes,
       updatedAt: member.updatedAt,
+      accessCodeAvailable:
+        !!member.accessCodeHash &&
+        !member.accessCodeUsedAt &&
+        !!member.accessCodeExpiresAt &&
+        member.accessCodeExpiresAt.getTime() > Date.now(),
     });
-  } catch (error) {
-    return res.status(500).json({ error: 'Erro ao buscar associado.' });
+  } catch {
+    return res.status(500).json({ error: 'Erro ao buscar autorização.' });
   }
 });
 
-// Admin: importar CPFs para o sistema como BLOCKED (para seguir o fluxo de liberação)
 router.post('/admin/members/import', adminAuth, async (req: Request, res: Response) => {
   try {
-    const bodyCpfs = (req.body as any)?.cpfs;
-
+    const bodyCpfs = req.body?.cpfs;
     const rawList: string[] = Array.isArray(bodyCpfs)
       ? bodyCpfs
       : typeof bodyCpfs === 'string'
         ? bodyCpfs.split(/[\n,;\s]+/)
         : [];
-
-    const normalized: string[] = [];
-    const seen = new Set<string>();
-    let invalid = 0;
-    let excluded = 0;
-
-    for (const item of rawList) {
-      const clean = normalizeCpf(String(item || ''));
-      if (!validateCPF(clean)) {
-        invalid += 1;
-        continue;
-      }
-      if (isCpfExcluded(clean)) {
-        excluded += 1;
-        continue;
-      }
-      if (seen.has(clean)) continue;
-      seen.add(clean);
-      normalized.push(clean);
-    }
-
-    if (normalized.length === 0) {
-      return res.json({ success: true, imported: 0, invalid, excluded });
-    }
-
+    const normalized = [...new Set(rawList.map((item) => normalizeCpf(String(item))))].filter(
+      validateCPF,
+    );
+    const invalid = rawList.length - normalized.length;
     const result = await prisma.member.createMany({
-      data: normalized.map((cpf) => ({
-        cpf,
-        status: 'BLOCKED',
-        notes: 'IMPORTADO VIA ADMIN',
-      })),
+      data: normalized.map((cpf) => ({ cpf, status: 'BLOCKED', notes: 'IMPORTADO VIA ADMIN' })),
       skipDuplicates: true,
     });
-
-    auditLog('MEMBER_IMPORT', `Importação de CPFs: ${result.count} novos (entrada: ${normalized.length})`);
+    auditLog('MEMBER_IMPORT', `${result.count} autorizações incluídas`);
     return res.json({
       success: true,
       imported: result.count,
       received: normalized.length,
       invalid,
-      excluded,
     });
-  } catch (error) {
-    return res.status(500).json({ error: 'Erro ao importar CPFs.' });
+  } catch {
+    return res.status(500).json({ error: 'Erro ao importar autorizações.' });
   }
 });
 
-// Admin: liberar CPF
 router.post('/admin/members/unlock', adminAuth, async (req: Request, res: Response) => {
   try {
     const cpf = normalizeCpf(req.body?.cpf || '');
-    const notes = typeof req.body?.notes === 'string' ? req.body.notes : undefined;
-
-    if (!validateCPF(cpf)) {
-      return res.status(400).json({ error: 'CPF inválido.' });
-    }
-
-    if (isCpfExcluded(cpf)) {
-      return res.status(403).json({
-        error: EXCLUDED_CPF_MESSAGE,
-        code: 'CPF_EXCLUDED',
-      });
-    }
-
-    const inAuthorizedList = isCpfInAuthorizedList(cpf);
-    if (!inAuthorizedList) {
-      return res.status(403).json({
-        error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
-        code: 'CPF_NOT_IN_SYSTEM',
-      });
-    }
-
+    const notes = typeof req.body?.notes === 'string' ? req.body.notes.trim().slice(0, 2000) : '';
+    if (!validateCPF(cpf)) return res.status(400).json({ error: 'CPF inválido.' });
     const existing = await prisma.member.findUnique({ where: { cpf } });
+    if (!existing)
+      return res.status(404).json({ error: 'CPF não cadastrado na base de autorizações.' });
+    if (existing.status === 'ACTIVE') {
+      const cadastro = await prisma.cadastro.findUnique({ where: { cpf }, select: { id: true } });
+      if (cadastro) {
+        return res.json({ success: true, alreadyActive: true, member: publicMember(existing) });
+      }
 
-    // Se já estiver liberado, não sobrescrever data/hora de liberação
-    if (existing && existing.status === 'ACTIVE') {
-      return res.json({ success: true, alreadyActive: true, member: existing });
+      const accessCode = generateAccessCode();
+      const member = await prisma.member.update({
+        where: { cpf },
+        data: {
+          notes: notes || existing.notes,
+          accessCodeHash: hashAccessCode(cpf, accessCode),
+          accessCodeExpiresAt: new Date(Date.now() + codeLifetimeMs),
+          accessCodeUsedAt: null,
+        },
+      });
+      auditLog('REGISTRATION_CODE_ISSUED', 'Código temporário renovado para CPF liberado');
+      return res.json({
+        success: true,
+        alreadyActive: true,
+        member: publicMember(member),
+        accessCode,
+        expiresIn: '24h',
+      });
     }
 
-    const member = await prisma.member.upsert({
+    const accessCode = generateAccessCode();
+    const member = await prisma.member.update({
       where: { cpf },
-      update: {
+      data: {
         status: 'ACTIVE',
         unlockedAt: new Date(),
         unlockedBy: 'admin',
         notes,
-      },
-      create: {
-        cpf,
-        status: 'ACTIVE',
-        unlockedAt: new Date(),
-        unlockedBy: 'admin',
-        notes,
+        accessCodeHash: hashAccessCode(cpf, accessCode),
+        accessCodeExpiresAt: new Date(Date.now() + codeLifetimeMs),
+        accessCodeUsedAt: null,
       },
     });
-
-    auditLog('MEMBER_UNLOCK', `CPF liberado: ${cpf}`);
-    return res.json({ success: true, alreadyActive: false, member });
-  } catch (error) {
+    auditLog('MEMBER_UNLOCK', 'CPF liberado e código temporário emitido');
+    return res.json({
+      success: true,
+      alreadyActive: false,
+      member: publicMember(member),
+      accessCode,
+      expiresIn: '24h',
+    });
+  } catch {
     return res.status(500).json({ error: 'Erro ao liberar CPF.' });
   }
 });
 
-// Admin: bloquear CPF
+router.post('/admin/members/access-code', adminAuth, async (req: Request, res: Response) => {
+  try {
+    const cpf = normalizeCpf(req.body?.cpf || '');
+    if (!validateCPF(cpf)) return res.status(400).json({ error: 'CPF inválido.' });
+    const member = await prisma.member.findUnique({ where: { cpf } });
+    const cadastro = await prisma.cadastro.findUnique({ where: { cpf }, select: { id: true } });
+    if (!member || member.status !== 'ACTIVE')
+      return res
+        .status(409)
+        .json({ error: 'O CPF precisa estar liberado antes de gerar o código.' });
+    if (cadastro)
+      return res
+        .status(409)
+        .json({ error: 'Este CPF já possui cadastro e não usa o código inicial.' });
+
+    const accessCode = generateAccessCode();
+    await prisma.member.update({
+      where: { cpf },
+      data: {
+        accessCodeHash: hashAccessCode(cpf, accessCode),
+        accessCodeExpiresAt: new Date(Date.now() + codeLifetimeMs),
+        accessCodeUsedAt: null,
+      },
+    });
+    auditLog('REGISTRATION_CODE_ISSUED', 'Novo código temporário emitido');
+    return res.json({ success: true, accessCode, expiresIn: '24h' });
+  } catch {
+    return res.status(500).json({ error: 'Erro ao gerar código temporário.' });
+  }
+});
+
 router.post('/admin/members/block', adminAuth, async (req: Request, res: Response) => {
   try {
     const cpf = normalizeCpf(req.body?.cpf || '');
-    const notes = typeof req.body?.notes === 'string' ? req.body.notes : undefined;
-
-    if (!validateCPF(cpf)) {
-      return res.status(400).json({ error: 'CPF inválido.' });
-    }
-
-    if (isCpfExcluded(cpf)) {
-      return res.status(403).json({
-        error: EXCLUDED_CPF_MESSAGE,
-        code: 'CPF_EXCLUDED',
-      });
-    }
-
-    const inAuthorizedList = isCpfInAuthorizedList(cpf);
-    if (!inAuthorizedList) {
-      return res.status(403).json({
-        error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
-        code: 'CPF_NOT_IN_SYSTEM',
-      });
-    }
-
+    const notes = typeof req.body?.notes === 'string' ? req.body.notes.trim().slice(0, 2000) : '';
+    if (!validateCPF(cpf)) return res.status(400).json({ error: 'CPF inválido.' });
     const existing = await prisma.member.findUnique({ where: { cpf } });
-
-    const member = await prisma.member.upsert({
+    if (!existing)
+      return res.status(404).json({ error: 'CPF não cadastrado na base de autorizações.' });
+    const member = await prisma.member.update({
       where: { cpf },
-      update: {
+      data: {
         status: 'BLOCKED',
         notes,
-      },
-      create: {
-        cpf,
-        status: 'BLOCKED',
-        notes,
+        accessCodeHash: null,
+        accessCodeExpiresAt: null,
+        accessCodeUsedAt: null,
       },
     });
-
-    auditLog('MEMBER_BLOCK', `CPF bloqueado: ${cpf}`);
-    return res.json({ success: true, member });
-  } catch (error) {
+    auditLog('MEMBER_BLOCK', 'Acesso cadastral bloqueado');
+    return res.json({ success: true, member: publicMember(member) });
+  } catch {
     return res.status(500).json({ error: 'Erro ao bloquear CPF.' });
   }
 });
