@@ -3,7 +3,6 @@ import { formatCPF, validateCPF } from '../utils';
 import { DBService } from '../db_service';
 import { BaseAutorizada } from '../types';
 import { Search, AlertCircle, Info } from 'lucide-react';
-import BlockedCpfPixNotice from './BlockedCpfPixNotice';
 
 interface LoginFormProps {
   onSuccess: (user: BaseAutorizada) => void;
@@ -11,10 +10,9 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
   const [cpf, setCpf] = useState('');
+  const [accessCode, setAccessCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const showPixNotice = /cpf\s*bloqueado/i.test(error);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,11 +24,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       setError('Por favor, informe um CPF válido.');
       return;
     }
+    if (!/^\d{8}$/.test(accessCode)) {
+      setError('Informe o código de acesso de 8 dígitos fornecido pela AAFAB.');
+      return;
+    }
 
     setLoading(true);
 
     try {
-      const result = await DBService.checkCPFAsync(cleanCpf);
+      const result = await DBService.checkCPFAsync(cleanCpf, accessCode);
 
       if (result.success && result.data) {
         onSuccess(result.data);
@@ -60,20 +62,18 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             Oficial da AAFAB.
           </p>
           <p className="text-sm text-gray-500 mt-2">
-            Informe seu CPF para iniciar a atualização cadastral
+            Informe seu CPF e o código temporário fornecido pela AAFAB
           </p>
         </div>
 
-        <div className="bg-green-50 border border-green-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-6 sm:mb-8">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-6 sm:mb-8">
           <div className="flex items-start gap-2 sm:gap-3">
-            <div className="flex-shrink-0 text-green-600 font-bold text-lg">✓</div>
+            <div className="flex-shrink-0 text-blue-600 font-bold text-lg">✓</div>
             <div>
-              <h4 className="text-xs sm:text-sm font-bold text-green-900 mb-1">
-                Já se cadastrou? Nenhum problema!
-              </h4>
-              <p className="text-xs sm:text-sm text-green-800">
-                Você pode acessar o sistema a qualquer momento para <strong>editar e atualizar</strong> seus dados.
-                Cometeu um erro no nome ou em qualquer outro campo? Basta fazer login novamente com seu CPF!
+              <h4 className="text-xs sm:text-sm font-bold text-blue-900 mb-1">Acesso protegido</h4>
+              <p className="text-xs sm:text-sm text-blue-800">
+                O código é pessoal, vale por 24 horas e pode ser usado uma única vez para concluir o
+                primeiro cadastro.
               </p>
             </div>
           </div>
@@ -98,14 +98,29 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             </div>
           </div>
 
-          {error && !showPixNotice && (
+          <div>
+            <label htmlFor="accessCode" className="block text-sm font-semibold text-gray-700 mb-2">
+              Código de acesso
+            </label>
+            <input
+              id="accessCode"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="00000000"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 focus:ring-blue-200 rounded-lg focus:outline-none focus:ring-4 transition-all text-base sm:text-lg tracking-[0.35em] font-medium"
+              required
+            />
+          </div>
+
+          {error && (
             <div className="bg-red-50 border-l-4 border-red-500 p-3 sm:p-4 flex items-start gap-2 sm:gap-3 rounded">
               <AlertCircle className="text-red-500 w-5 h-5 flex-shrink-0 mt-0.5" />
               <p className="text-xs sm:text-sm text-red-700 font-medium">{error}</p>
             </div>
           )}
-
-          {showPixNotice && <BlockedCpfPixNotice />}
 
           <button
             type="submit"

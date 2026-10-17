@@ -1,17 +1,17 @@
 import { Router, Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../db';
-import ExcelJS from 'exceljs';
 import { auditLog } from '../utils/logger';
 import { validateCPF } from '../utils/cpfValidator';
 import { adminAuth } from '../middleware/adminAuth';
 import { normalizeCpf } from '../utils/normalizeCpf';
-import { isCpfInAuthorizedList } from '../utils/authorizedCpfList';
-import { EXCLUDED_CPF_MESSAGE, isCpfExcluded } from '../utils/excludedCpfs';
+import { verifyToken } from '../utils/jwt';
+import { sameHash } from '../utils/registrationCode';
 
 const router = Router();
 
 // Função para limpar dados e manter apenas o que o Prisma espera
-const sanitizeCadastro = (data: any) => {
+const sanitizeCadastro = (data: unknown) => {
   const fields = [
     'cpf',
     'nome',
@@ -26,11 +26,46 @@ const sanitizeCadastro = (data: any) => {
     'cep',
     'certidao_obito',
   ];
-  const sanitized: any = {};
+  const source = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const sanitized: Record<string, string | null> = {};
   fields.forEach((f) => {
-    if (data[f] !== undefined) sanitized[f] = data[f];
+    const value = source[f];
+    if (value === undefined) return;
+    if (value === null && f === 'certidao_obito') sanitized[f] = null;
+    else if (typeof value === 'string') sanitized[f] = value.trim();
   });
   return sanitized;
+};
+
+const requiredTextFields = [
+  'nome',
+  'estado',
+  'turma_cesd',
+  'rg',
+  'email',
+  'telefone',
+  'endereco',
+  'bairro',
+  'cidade',
+  'cep',
+] as const;
+
+const fieldLimits: Record<(typeof requiredTextFields)[number], number> = {
+  nome: 160,
+  estado: 2,
+  turma_cesd: 40,
+  rg: 40,
+  email: 254,
+  telefone: 20,
+  endereco: 240,
+  bairro: 120,
+  cidade: 120,
+  cep: 9,
+};
+
+const bearerToken = (req: Request): string | null => {
+  const value = req.headers.authorization;
+  return value?.startsWith('Bearer ') ? value.slice(7) : null;
 };
 
 // Submissão de novo cadastro (LGPD Compliant)
@@ -38,47 +73,95 @@ router.post('/', async (req, res) => {
   try {
     const data = sanitizeCadastro(req.body);
 
-    if (!data.cpf) {
-      return res.status(400).json({ error: 'CPF é obrigatório.' });
+    const token = bearerToken(req);
+    const access = token ? verifyToken(token) : null;
+    if (
+      !access ||
+      access.scope !== 'registration' ||
+      typeof access.memberId !== 'number' ||
+      typeof access.cpf !== 'string' ||
+      typeof access.codeHash !== 'string'
+    ) {
+      return res.status(401).json({ error: 'Acesso de cadastro inválido ou expirado.' });
     }
 
-    const cleanCpf = normalizeCpf(data.cpf);
+    const cleanCpf = normalizeCpf(String(data.cpf || ''));
 
     // Backend CPF validation
     if (!validateCPF(cleanCpf)) {
       return res.status(400).json({ error: 'CPF inválido.' });
     }
 
-    const existingCadastro = await prisma.cadastro.findUnique({ where: { cpf: cleanCpf } });
-
-    // Regra de acesso: novo cadastro precisa estar liberado (Member.status = ACTIVE).
-    // Quem já possui cadastro pode atualizar os próprios dados.
-    const member = await prisma.member.findUnique({ where: { cpf: cleanCpf } });
-    if (!existingCadastro && (!member || member.status !== 'ACTIVE')) {
-      return res
-        .status(403)
-        .json({ error: 'CPF bloqueado. Procure o responsável para liberação.' });
+    if (cleanCpf !== access.cpf) {
+      return res.status(403).json({ error: 'Acesso de cadastro recusado.' });
     }
 
-    // Upsert logic to guarantee uniqueness by CPF
-    const cadastro = await prisma.cadastro.upsert({
-      where: { cpf: cleanCpf },
-      update: {
-        ...data,
-        cpf: cleanCpf,
-        data_envio: new Date(),
-        status: 'CONCLUÍDO',
-      },
-      create: {
-        ...data,
-        cpf: cleanCpf,
-        status: 'CONCLUÍDO',
-      },
+    for (const field of requiredTextFields) {
+      const value = data[field];
+      if (typeof value !== 'string' || value.length === 0 || value.length > fieldLimits[field]) {
+        return res.status(400).json({ error: 'Revise os campos obrigatórios do formulário.' });
+      }
+    }
+    if (!/^[A-Z]{2}$/i.test(data.estado as string))
+      return res.status(400).json({ error: 'Estado inválido.' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email as string))
+      return res.status(400).json({ error: 'E-mail inválido.' });
+    if (!/^\d{10,11}$/.test((data.telefone as string).replace(/\D/g, '')))
+      return res.status(400).json({ error: 'Telefone inválido.' });
+    if (!/^\d{8}$/.test((data.cep as string).replace(/\D/g, '')))
+      return res.status(400).json({ error: 'CEP inválido.' });
+
+    const cadastro = await prisma.$transaction(async (tx) => {
+      const member = await tx.member.findUnique({ where: { id: access.memberId } });
+      const accessStillValid =
+        member?.cpf === cleanCpf &&
+        member.status === 'ACTIVE' &&
+        !!member.accessCodeHash &&
+        sameHash(member.accessCodeHash, access.codeHash as string) &&
+        !!member.accessCodeExpiresAt &&
+        member.accessCodeExpiresAt.getTime() > Date.now() &&
+        !member.accessCodeUsedAt;
+
+      if (!member || !accessStillValid) throw new Error('REGISTRATION_ACCESS_INVALID');
+
+      const created = await tx.cadastro.create({
+        data: {
+          cpf: cleanCpf,
+          nome: data.nome as string,
+          estado: (data.estado as string).toUpperCase(),
+          turma_cesd: data.turma_cesd as string,
+          rg: data.rg as string,
+          email: (data.email as string).toLowerCase(),
+          telefone: (data.telefone as string).replace(/\D/g, ''),
+          endereco: data.endereco as string,
+          bairro: data.bairro as string,
+          cidade: data.cidade as string,
+          cep: (data.cep as string).replace(/\D/g, ''),
+          certidao_obito:
+            typeof data.certidao_obito === 'string' ? data.certidao_obito.slice(0, 240) : null,
+          status: 'CONCLUÍDO',
+        },
+      });
+      await tx.member.update({
+        where: { id: member.id },
+        data: {
+          accessCodeHash: null,
+          accessCodeExpiresAt: null,
+          accessCodeUsedAt: new Date(),
+        },
+      });
+      return created;
     });
 
-    res.json({ success: true, data: cadastro });
+    auditLog('REGISTRATION_CREATED', 'Novo cadastro concluído');
+    return res.status(201).json({ success: true, data: { id: cadastro.id, cpf: cadastro.cpf } });
   } catch (error) {
-    console.error('Erro ao salvar:', error);
+    if (error instanceof Error && error.message === 'REGISTRATION_ACCESS_INVALID') {
+      return res.status(401).json({ error: 'Acesso de cadastro inválido ou expirado.' });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return res.status(409).json({ error: 'Este cadastro já foi concluído.' });
+    }
     res.status(500).json({ error: 'Erro ao processar cadastro no servidor.' });
   }
 });
@@ -97,45 +180,16 @@ router.get('/admin/list', adminAuth, async (req, res) => {
 });
 
 // Buscar cadastro por CPF (sem autenticação - apenas consulta pessoal)
-router.get('/consulta/:cpf', async (req: Request, res: Response) => {
-  try {
-    const { cpf } = req.params;
-    const cleanCpf = normalizeCpf(cpf);
+router.get('/consulta/:cpf', (_req: Request, res: Response) =>
+  res.status(410).json({
+    error: 'A consulta pública foi desativada. Procure a Secretaria da AAFAB.',
+    code: 'PUBLIC_LOOKUP_DISABLED',
+  }),
+);
 
-    if (!cleanCpf || cleanCpf.length !== 11) {
-      return res.status(400).json({ error: 'CPF inválido.' });
-    }
+const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
-    if (isCpfExcluded(cleanCpf)) {
-      return res.status(403).json({
-        error: EXCLUDED_CPF_MESSAGE,
-        code: 'CPF_EXCLUDED',
-      });
-    }
-
-    // Se já existe cadastro, permitir consulta (mesmo fora da lista oficial)
-    const existingCadastro = await prisma.cadastro.findUnique({
-      where: { cpf: cleanCpf },
-    });
-
-    if (existingCadastro) {
-      return res.json(existingCadastro);
-    }
-
-    if (!isCpfInAuthorizedList(cleanCpf)) {
-      return res.status(403).json({
-        error: 'CPF não faz parte do sistema (não está na lista AAFAB).',
-        code: 'CPF_NOT_IN_SYSTEM',
-      });
-    }
-
-    return res.status(404).json({ error: 'Cadastro não encontrado.' });
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar cadastro.' });
-  }
-});
-
-// Exportar para Excel
+// Exportação CSV compatível com Excel, sem uma biblioteca vulnerável de planilhas.
 router.get('/admin/export', adminAuth, async (req, res) => {
   try {
     auditLog('ADMIN_EXPORT', 'Exportação para Excel solicitada');
@@ -143,38 +197,41 @@ router.get('/admin/export', adminAuth, async (req, res) => {
       orderBy: { data_envio: 'desc' },
     });
 
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Cadastros AAFAB');
-
-    worksheet.columns = [
-      { header: 'CPF', key: 'cpf', width: 15 },
-      { header: 'NOME', key: 'nome', width: 30 },
-      { header: 'EMAIL', key: 'email', width: 25 },
-      { header: 'TELEFONE', key: 'telefone', width: 15 },
-      { header: 'ESTADO', key: 'estado', width: 10 },
-      { header: 'BAIRRO', key: 'bairro', width: 15 },
-      { header: 'CIDADE', key: 'cidade', width: 15 },
-      { header: 'ENDEREÇO', key: 'endereco', width: 40 },
-      { header: 'TURMA', key: 'turma_cesd', width: 15 },
-      { header: 'CERTIDÃO DE ÓBITO', key: 'certidao_obito', width: 20 },
-      { header: 'DATA ENVIO', key: 'data_envio', width: 20 },
+    const header = [
+      'CPF',
+      'NOME',
+      'EMAIL',
+      'TELEFONE',
+      'ESTADO',
+      'BAIRRO',
+      'CIDADE',
+      'ENDEREÇO',
+      'TURMA',
+      'CERTIDÃO DE ÓBITO',
+      'DATA ENVIO',
     ];
-
-    cadastros.forEach((c) => {
-      worksheet.addRow({
-        ...c,
-        data_envio: c.data_envio.toLocaleString(),
-      });
-    });
-
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    const rows = cadastros.map((c) =>
+      [
+        c.cpf,
+        c.nome,
+        c.email,
+        c.telefone,
+        c.estado,
+        c.bairro,
+        c.cidade,
+        c.endereco,
+        c.turma_cesd,
+        c.certidao_obito || '',
+        c.data_envio.toLocaleString('pt-BR'),
+      ]
+        .map(csvCell)
+        .join(';'),
     );
-    res.setHeader('Content-Disposition', 'attachment; filename="cadastros_aafab.xlsx"');
+    const csv = `\uFEFF${[header.map(csvCell).join(';'), ...rows].join('\r\n')}`;
 
-    await workbook.xlsx.write(res);
-    res.end();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="cadastros_aafab.csv"');
+    return res.send(csv);
   } catch (error) {
     res.status(500).json({ error: 'Erro na exportação.' });
   }

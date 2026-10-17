@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BaseAutorizada } from '../types';
 import { formatCEP, formatPhone } from '../utils';
 import { DBService } from '../db_service';
@@ -8,10 +8,9 @@ interface RegistrationFormProps {
   user: BaseAutorizada;
   onSuccess: () => void;
   onCancel: () => void;
-  forceReload?: boolean;
 }
 
-const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, onCancel, forceReload = false }) => {
+const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, onCancel }) => {
   const [formData, setFormData] = useState(() => {
     const hasPlaceholderName = /(AUTORIZADO|ASSOCIADO)\s*-/.test(user.nome);
     return {
@@ -31,61 +30,6 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-
-  // Buscar dados do backend se já houver cadastro
-  useEffect(() => {
-    const loadExistingData = async () => {
-      // Limpar cache para forçar recarga
-      const enviados = DBService.getEnviados();
-      const existingLocal = enviados.find((e) => e.cpf === user.cpf);
-
-      if (existingLocal) {
-        console.log('✓ Dados encontrados no localStorage:', existingLocal.nome);
-        setFormData({
-          nome: existingLocal.nome || '',
-          estado: existingLocal.estado || '',
-          turma_cesd: existingLocal.turma_cesd || '',
-          rg: existingLocal.rg || '',
-          email: (existingLocal.email || '').toLowerCase(),
-          telefone: formatPhone(existingLocal.telefone || ''),
-          endereco: existingLocal.endereco || '',
-          bairro: existingLocal.bairro || '',
-          cidade: existingLocal.cidade || '',
-          cep: formatCEP(existingLocal.cep || ''),
-          certidao_obito: existingLocal.certidao_obito || '',
-        });
-        setIsEditing(true);
-        return;
-      }
-
-      // Se não encontrou local, busca no backend
-      try {
-        const backendData = await DBService.getCadastroFromBackend(user.cpf);
-        if (backendData) {
-          console.log('✓ Dados encontrados no backend:', backendData.nome);
-          setFormData({
-            nome: backendData.nome || '',
-            estado: backendData.estado || '',
-            turma_cesd: backendData.turma_cesd || '',
-            rg: backendData.rg || '',
-            email: (backendData.email || '').toLowerCase(),
-            telefone: formatPhone(backendData.telefone || ''),
-            endereco: backendData.endereco || '',
-            bairro: backendData.bairro || '',
-            cidade: backendData.cidade || '',
-            cep: formatCEP(backendData.cep || ''),
-            certidao_obito: backendData.certidao_obito || '',
-          });
-          setIsEditing(true);
-        }
-      } catch (error) {
-        console.warn('Erro ao carregar dados do backend:', error);
-      }
-    };
-
-    loadExistingData();
-  }, [user.cpf, forceReload]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -134,12 +78,21 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
     setLoading(true);
 
     // Backend call through DBService
-    DBService.saveRegistration({
-      ...user,
-      ...formData,
-      telefone: formData.telefone.replace(/\D/g, ''),
-      cep: formData.cep.replace(/\D/g, ''),
-    })
+    if (!user.registrationToken) {
+      setLoading(false);
+      setError('Seu acesso expirou. Volte e solicite um novo código à AAFAB.');
+      return;
+    }
+
+    DBService.saveRegistration(
+      {
+        cpf: user.cpf,
+        ...formData,
+        telefone: formData.telefone.replace(/\D/g, ''),
+        cep: formData.cep.replace(/\D/g, ''),
+      },
+      user.registrationToken,
+    )
       .then((result) => {
         setLoading(false);
         if (result.success) {
@@ -160,15 +113,11 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({ user, onSuccess, on
         <div className="flex items-center gap-2">
           <FileText className="text-blue-600 w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
           <h2 className="font-bold text-blue-900 uppercase tracking-wider text-xs sm:text-sm">
-            Formulário de {isEditing ? 'Edição' : 'Atualização'} Cadastral
+            Formulário de Atualização Cadastral
           </h2>
         </div>
-        <span className={`text-xs font-bold px-2 py-1 rounded-full flex-shrink-0 ${
-          isEditing
-            ? 'bg-green-100 text-green-700'
-            : 'bg-blue-100 text-blue-700'
-        }`}>
-          {isEditing ? '✏️ EDITANDO' : 'NOVO CADASTRO'}
+        <span className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0 bg-blue-100 text-blue-700">
+          NOVO CADASTRO
         </span>
       </div>
 

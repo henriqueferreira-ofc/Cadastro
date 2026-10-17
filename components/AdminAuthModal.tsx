@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, X, ChevronRight } from 'lucide-react';
 import { getBackendUrl } from '../utils';
+import { adminSession } from '../admin_session';
 
 interface AdminAuthModalProps {
   onSuccess: () => void;
@@ -55,7 +56,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
 
         if (response.ok && data?.success && data?.token) {
           // Sucesso com o backend (JWT real)
-          localStorage.setItem('admin_token', data.token);
+          adminSession.set(data.token);
           onSuccess();
           onClose();
           return;
@@ -65,14 +66,8 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
         const shouldRetry = !response.ok && response.status >= 500 && response.status <= 599;
         if (shouldRetry && attempt < maxAttempts - 1) continue;
 
-        // Em produção, não podemos cair no token local (backend sempre exige JWT)
-        if (!isLocalhost) {
-          setError(
-            data?.error ||
-              'Acesso negado (401). Verifique a senha do admin no Render (ADMIN_PASSWORD).',
-          );
-          return;
-        }
+        setError(data?.error || 'Credenciais inválidas.');
+        return;
       } catch (err) {
         // Falha de rede/timeout durante cold start: tentar novamente.
         console.log('Backend indisponível para login (rede/timeout), tentando novamente...');
@@ -92,15 +87,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
       }
     }
 
-    // Fallback local apenas em localhost (dev)
-    if (isLocalhost && password === 'AAFAB@2026#Secure!') {
-      localStorage.setItem('admin_token', 'local_admin_access');
-      onSuccess();
-      onClose();
-      return;
-    }
-
-    setError('Senha incorreta.');
+    setError('Credenciais inválidas.');
     setPassword('');
     return;
   };

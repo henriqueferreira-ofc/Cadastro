@@ -6,6 +6,7 @@ export interface BaseAutorizada {
   rg: string;
   certidao_obito?: string;
   cadastro_realizado: boolean;
+  registrationToken?: string;
 }
 
 export interface CadastroEnviado {
