@@ -12,6 +12,13 @@ export function hashAccessCode(cpf: string, code: string): string {
     .digest('hex');
 }
 
+export function hashPortalActivationCode(cpf: string, code: string): string {
+  return crypto
+    .createHmac('sha256', config.jwtSecret)
+    .update(`portal-activation:${cpf}:${code}`)
+    .digest('hex');
+}
+
 export function sameHash(left: string, right: string): boolean {
   const a = Buffer.from(left, 'hex');
   const b = Buffer.from(right, 'hex');

@@ -4,9 +4,17 @@ import { validateCPF } from '../utils/cpfValidator';
 import { adminAuth } from '../middleware/adminAuth';
 import { auditLog } from '../utils/logger';
 import { normalizeCpf } from '../utils/normalizeCpf';
-import { generateAccessCode, hashAccessCode } from '../utils/registrationCode';
+import {
+  generateAccessCode,
+  hashAccessCode,
+  hashPortalActivationCode,
+} from '../utils/registrationCode';
 
 const router = Router();
+router.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 const codeLifetimeMs = 24 * 60 * 60 * 1000;
 
 const publicMember = (member: {
@@ -65,7 +73,23 @@ router.get('/admin/members/:cpf', adminAuth, async (req: Request, res: Response)
   try {
     const cpf = normalizeCpf(req.params.cpf || '');
     if (!validateCPF(cpf)) return res.status(400).json({ error: 'CPF inválido.' });
-    const member = await prisma.member.findUnique({ where: { cpf } });
+    const [member, cadastro] = await Promise.all([
+      prisma.member.findUnique({ where: { cpf } }),
+      prisma.cadastro.findUnique({
+        where: { cpf },
+        select: {
+          id: true,
+          account: {
+            select: {
+              passwordHash: true,
+              activationCodeHash: true,
+              activationCodeExpiresAt: true,
+              activationCodeUsedAt: true,
+            },
+          },
+        },
+      }),
+    ]);
     if (!member) {
       return res.json({
         cpf,
@@ -84,6 +108,13 @@ router.get('/admin/members/:cpf', adminAuth, async (req: Request, res: Response)
       unlockedBy: member.unlockedBy,
       notes: member.notes,
       updatedAt: member.updatedAt,
+      cadastroRealizado: !!cadastro,
+      portalAtivo: !!cadastro?.account?.passwordHash,
+      ativacaoPortalDisponivel:
+        !!cadastro?.account?.activationCodeHash &&
+        !cadastro.account.activationCodeUsedAt &&
+        !!cadastro.account.activationCodeExpiresAt &&
+        cadastro.account.activationCodeExpiresAt.getTime() > Date.now(),
       accessCodeAvailable:
         !!member.accessCodeHash &&
         !member.accessCodeUsedAt &&
@@ -134,7 +165,12 @@ router.post('/admin/members/unlock', adminAuth, async (req: Request, res: Respon
     if (existing.status === 'ACTIVE') {
       const cadastro = await prisma.cadastro.findUnique({ where: { cpf }, select: { id: true } });
       if (cadastro) {
-        return res.json({ success: true, alreadyActive: true, member: publicMember(existing) });
+        return res.json({
+          success: true,
+          alreadyActive: true,
+          alreadyRegistered: true,
+          member: publicMember(existing),
+        });
       }
 
       const accessCode = generateAccessCode();
@@ -214,6 +250,56 @@ router.post('/admin/members/access-code', adminAuth, async (req: Request, res: R
   }
 });
 
+router.post('/admin/members/portal-access', adminAuth, async (req: Request, res: Response) => {
+  try {
+    const cpf = normalizeCpf(req.body?.cpf || '');
+    if (!validateCPF(cpf)) return res.status(400).json({ error: 'CPF inválido.' });
+    const [member, cadastro] = await Promise.all([
+      prisma.member.findUnique({ where: { cpf }, select: { status: true } }),
+      prisma.cadastro.findUnique({
+        where: { cpf },
+        include: { account: { select: { id: true, passwordHash: true } } },
+      }),
+    ]);
+    if (!cadastro)
+      return res.status(409).json({ error: 'Este CPF ainda precisa concluir o cadastro.' });
+    if (member?.status !== 'ACTIVE')
+      return res.status(409).json({ error: 'O acesso associativo precisa estar liberado.' });
+    const accessCode = generateAccessCode();
+    await prisma.memberAccount.upsert({
+      where: { cadastroId: cadastro.id },
+      create: {
+        cadastroId: cadastro.id,
+        activationCodeHash: hashPortalActivationCode(cpf, accessCode),
+        activationCodeExpiresAt: new Date(Date.now() + codeLifetimeMs),
+      },
+      update: {
+        activationCodeHash: hashPortalActivationCode(cpf, accessCode),
+        activationCodeExpiresAt: new Date(Date.now() + codeLifetimeMs),
+        activationCodeUsedAt: null,
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
+    });
+    auditLog(
+      cadastro.account?.passwordHash
+        ? 'MEMBER_PORTAL_PASSWORD_RESET_ISSUED'
+        : 'MEMBER_PORTAL_ACTIVATION_ISSUED',
+      cadastro.account?.passwordHash
+        ? 'Código de redefinição do portal emitido'
+        : 'Código de ativação do portal emitido',
+    );
+    return res.json({
+      success: true,
+      accessCode,
+      expiresIn: '24h',
+      purpose: cadastro.account?.passwordHash ? 'PASSWORD_RESET' : 'ACTIVATION',
+    });
+  } catch {
+    return res.status(500).json({ error: 'Erro ao gerar acesso ao Portal do Associado.' });
+  }
+});
+
 router.post('/admin/members/block', adminAuth, async (req: Request, res: Response) => {
   try {
     const cpf = normalizeCpf(req.body?.cpf || '');
@@ -222,15 +308,30 @@ router.post('/admin/members/block', adminAuth, async (req: Request, res: Respons
     const existing = await prisma.member.findUnique({ where: { cpf } });
     if (!existing)
       return res.status(404).json({ error: 'CPF não cadastrado na base de autorizações.' });
-    const member = await prisma.member.update({
-      where: { cpf },
-      data: {
-        status: 'BLOCKED',
-        notes,
-        accessCodeHash: null,
-        accessCodeExpiresAt: null,
-        accessCodeUsedAt: null,
-      },
+    const member = await prisma.$transaction(async (tx) => {
+      const updated = await tx.member.update({
+        where: { cpf },
+        data: {
+          status: 'BLOCKED',
+          notes,
+          accessCodeHash: null,
+          accessCodeExpiresAt: null,
+          accessCodeUsedAt: null,
+        },
+      });
+      const cadastro = await tx.cadastro.findUnique({ where: { cpf }, select: { id: true } });
+      if (cadastro) {
+        await tx.memberAccount.updateMany({
+          where: { cadastroId: cadastro.id },
+          data: {
+            sessionVersion: { increment: 1 },
+            activationCodeHash: null,
+            activationCodeExpiresAt: null,
+            activationCodeUsedAt: null,
+          },
+        });
+      }
+      return updated;
     });
     auditLog('MEMBER_BLOCK', 'Acesso cadastral bloqueado');
     return res.json({ success: true, member: publicMember(member) });

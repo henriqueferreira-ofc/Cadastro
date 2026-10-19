@@ -27,4 +27,4 @@ export interface CadastroEnviado {
   status: string;
 }
 
-export type ViewState = 'AUTH' | 'FORM' | 'SUCCESS' | 'ADMIN';
+export type ViewState = 'AUTH' | 'FORM' | 'SUCCESS' | 'MEMBER' | 'ADMIN';

@@ -1,12 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, Clipboard, Database, Download, Search, Table, Upload } from 'lucide-react';
+import { Clipboard, Database, Download, Search, Table, Upload } from 'lucide-react';
 import { BaseAutorizada, CadastroEnviado } from '../types';
 import { formatCPF, getBackendUrl, validateCPF } from '../utils';
 import { adminSession } from '../admin_session';
-
-interface AdminDashboardProps {
-  onBack: () => void;
-}
 
 type MemberInfo = {
   cpf: string;
@@ -17,9 +13,12 @@ type MemberInfo = {
   unlockedAt?: string | null;
   notes?: string | null;
   accessCodeAvailable?: boolean;
+  cadastroRealizado?: boolean;
+  portalAtivo?: boolean;
+  ativacaoPortalDisponivel?: boolean;
 };
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
+const AdminDashboard: React.FC = () => {
   const backendUrl = getBackendUrl();
   const [base, setBase] = useState<BaseAutorizada[]>([]);
   const [enviados, setEnviados] = useState<CadastroEnviado[]>([]);
@@ -108,7 +107,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       setMemberNotes(data?.notes || '');
       setMemberMessage(
         data?.exists
-          ? data.status === 'ACTIVE'
+          ? data.cadastroRealizado
+            ? 'CPF liberado e com cadastro já enviado.'
+            : data.status === 'ACTIVE'
             ? 'CPF liberado.'
             : 'CPF cadastrado na base e bloqueado.'
           : data?.warning || 'CPF não cadastrado na base de autorizações.',
@@ -120,7 +121,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     }
   };
 
-  const handleMemberAction = async (action: 'unlock' | 'block' | 'access-code') => {
+  const handleMemberAction = async (
+    action: 'unlock' | 'block' | 'access-code' | 'portal-access',
+  ) => {
     setMemberError('');
     setMemberMessage('');
     setIssuedCode('');
@@ -134,11 +137,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || 'Não foi possível concluir a operação.');
-      if (typeof data?.accessCode === 'string') setIssuedCode(data.accessCode);
+      const accessCode = typeof data?.accessCode === 'string' ? data.accessCode : '';
+      setIssuedCode(accessCode);
+      if (data?.member) {
+        setMemberInfo({
+          ...data.member,
+          exists: true,
+          cadastroRealizado:
+            Boolean(data.alreadyRegistered) || Boolean(memberInfo?.cadastroRealizado),
+        });
+      }
+      if (action === 'portal-access' && accessCode) {
+        setMemberInfo((current) =>
+          current ? { ...current, ativacaoPortalDisponivel: true } : current,
+        );
+      }
       setMemberMessage(
         action === 'block'
           ? 'CPF bloqueado com sucesso.'
-          : 'CPF liberado. Entregue o código abaixo diretamente ao associado.',
+          : action === 'portal-access' && accessCode
+            ? memberInfo?.portalAtivo
+              ? 'Código de redefinição de senha gerado. Entregue-o diretamente ao titular.'
+              : 'Código de ativação do Portal do Associado gerado. Entregue-o diretamente ao titular.'
+          : accessCode
+            ? 'Código gerado. Entregue-o diretamente ao associado.'
+            : data?.alreadyRegistered
+              ? 'Este CPF já possui cadastro enviado. O código temporário é usado somente no primeiro cadastro.'
+              : 'Operação concluída.',
       );
       await loadData();
     } catch (error) {
@@ -205,11 +230,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     URL.revokeObjectURL(url);
   };
 
-  const exitAdmin = () => {
-    adminSession.clear();
-    onBack();
-  };
-
   const filteredEnviados = useMemo(() => {
     const term = searchTerm.toLowerCase();
     return enviados.filter(
@@ -231,12 +251,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
     <div className="space-y-5 animate-in fade-in duration-300">
       <div className="flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="min-w-0 flex-1">
-          <button
-            onClick={exitAdmin}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-700"
-          >
-            <ChevronLeft className="w-4 h-4" /> Sair do painel
-          </button>
           <h2 className="text-2xl font-extrabold text-gray-800 mt-2">Cadastro</h2>
           <p className="text-xs font-bold text-green-700 bg-green-50 border border-green-100 rounded px-2 py-1 mt-1 inline-block">
             PAINEL ADMINISTRATIVO V1.5 · BANCO CONECTADO
@@ -311,10 +325,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         {memberMessage && (
           <p className="mt-3 text-sm font-semibold text-gray-700">{memberMessage}</p>
         )}
+        {memberInfo?.cadastroRealizado && (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+            Cadastro já enviado. O código de cadastro não se aplica mais. Para o primeiro acesso do
+            titular, use “Gerar acesso ao portal”; atendimentos e correções ficam na aba Secretaria.
+          </div>
+        )}
         {issuedCode && (
           <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-xs font-bold uppercase text-green-800">
-              Código temporário — exibido somente agora
+              Código temporário — copie agora
             </p>
             <div className="mt-2 flex items-center gap-3">
               <code className="text-2xl font-black tracking-[0.3em] text-green-900">
@@ -328,9 +348,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                 <Clipboard className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-green-800 mt-2">
-              Válido por 24 horas e por um único cadastro.
-            </p>
+            <p className="text-xs text-green-800 mt-2">Válido por 24 horas e por um único uso.</p>
           </div>
         )}
         <div className="flex flex-wrap gap-2 mt-4">
@@ -341,20 +359,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
           >
             Consultar
           </button>
-          <button
-            onClick={() => handleMemberAction('unlock')}
-            disabled={memberLoading}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold disabled:opacity-50"
-          >
-            Liberar e gerar código
-          </button>
-          <button
-            onClick={() => handleMemberAction('access-code')}
-            disabled={memberLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50"
-          >
-            Novo código
-          </button>
+          {memberInfo?.cadastroRealizado ? (
+            <button
+              onClick={() => handleMemberAction('portal-access')}
+              disabled={memberLoading}
+              title={
+                memberInfo.portalAtivo
+                  ? 'Gerar código temporário para o titular redefinir a senha'
+                  : 'Gerar código para o titular criar a senha do portal'
+              }
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {memberInfo.portalAtivo
+                ? 'Redefinir senha do portal'
+                : memberInfo.ativacaoPortalDisponivel
+                  ? 'Gerar novo código do portal'
+                  : 'Gerar acesso ao portal'}
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => handleMemberAction('unlock')}
+                disabled={memberLoading}
+                title="Liberar CPF e gerar o primeiro código"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Liberar e gerar código
+              </button>
+              <button
+                onClick={() => handleMemberAction('access-code')}
+                disabled={memberLoading}
+                title="Substituir um código ainda não utilizado"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Novo código
+              </button>
+            </>
+          )}
           <button
             onClick={() => handleMemberAction('block')}
             disabled={memberLoading}
