@@ -81,7 +81,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
         }
 
         setError(
-          'Servidor indisponível. Inicie o backend para ver os dados do banco (ex: npm run dev:all).',
+          'Servidor local indisponível. No terminal do projeto, execute npm run dev.',
         );
         return;
       }

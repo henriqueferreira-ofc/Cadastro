@@ -15,8 +15,40 @@ const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs: numbe
 };
 
 type CheckCpfResult = { success: boolean; data?: BaseAutorizada; error?: string };
+export type RegistrationGuidanceStatus =
+  | 'PAYMENT_REQUIRED'
+  | 'CODE_READY'
+  | 'ALREADY_REGISTERED'
+  | 'CONTACT_SECRETARY';
 
 export const DBService = {
+  registrationGuidance: async (cpf: string): Promise<RegistrationGuidanceStatus> => {
+    try {
+      const response = await fetchWithTimeout(
+        `${BACKEND_URL}/auth/registration-guidance`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cpf: cpf.replace(/\D/g, '') }),
+        },
+        isProduction ? 60_000 : 12_000,
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok || typeof result?.status !== 'string') {
+        throw new Error(result?.error || 'Não foi possível consultar a situação.');
+      }
+      const statuses: RegistrationGuidanceStatus[] = [
+        'PAYMENT_REQUIRED',
+        'CODE_READY',
+        'ALREADY_REGISTERED',
+        'CONTACT_SECRETARY',
+      ];
+      return statuses.includes(result.status) ? result.status : 'CONTACT_SECRETARY';
+    } catch {
+      throw new Error('Servidor indisponível. Aguarde alguns instantes e tente novamente.');
+    }
+  },
+
   checkCPFAsync: async (cpf: string, accessCode: string): Promise<CheckCpfResult> => {
     try {
       const response = await fetchWithTimeout(

@@ -9,6 +9,10 @@ import { validateCPF } from '../utils/cpfValidator';
 import { hashAccessCode, sameHash } from '../utils/registrationCode';
 
 const router = Router();
+router.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 // Admin login endpoint
 router.post('/login', (req: Request, res: Response) => {
@@ -37,6 +41,48 @@ router.post('/login', (req: Request, res: Response) => {
 
 const genericAccessMessage =
   'Não foi possível iniciar o cadastro. Solicite orientação à Secretaria da AAFAB.';
+
+// Orienta o fluxo sem devolver nome, situação financeira ou qualquer outro dado pessoal.
+router.post('/registration-guidance', async (req: Request, res: Response) => {
+  const cpf = normalizeCpf(req.body?.cpf);
+  if (!validateCPF(cpf)) {
+    return res.status(200).json({ status: 'CONTACT_SECRETARY' });
+  }
+  try {
+    const [member, cadastro] = await Promise.all([
+      prisma.member.findUnique({
+        where: { cpf },
+        select: {
+          status: true,
+          accessCodeHash: true,
+          accessCodeExpiresAt: true,
+          accessCodeUsedAt: true,
+        },
+      }),
+      prisma.cadastro.findUnique({ where: { cpf }, select: { id: true } }),
+    ]);
+    if (!member) {
+      auditLog('REGISTRATION_GUIDANCE_DENIED', 'CPF não confirmado no fluxo público');
+      return res.json({ status: 'CONTACT_SECRETARY' });
+    }
+    if (cadastro) {
+      return res.json({
+        status: member.status === 'ACTIVE' ? 'ALREADY_REGISTERED' : 'CONTACT_SECRETARY',
+      });
+    }
+    const codeAvailable =
+      member.status === 'ACTIVE' &&
+      !!member.accessCodeHash &&
+      !!member.accessCodeExpiresAt &&
+      !member.accessCodeUsedAt &&
+      member.accessCodeExpiresAt.getTime() > Date.now();
+    if (codeAvailable) return res.json({ status: 'CODE_READY' });
+    if (member.status === 'ACTIVE') return res.json({ status: 'CONTACT_SECRETARY' });
+    return res.json({ status: 'PAYMENT_REQUIRED' });
+  } catch {
+    return res.status(503).json({ error: 'Serviço temporariamente indisponível.' });
+  }
+});
 
 // Primeiro cadastro: exige CPF e o código temporário fornecido pela administração.
 router.post('/registration-access', async (req: Request, res: Response) => {

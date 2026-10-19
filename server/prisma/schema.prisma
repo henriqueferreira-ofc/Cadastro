@@ -30,8 +30,8 @@ model Member {
 }
 
 model Cadastro {
-  id             Int      @id @default(autoincrement())
-  cpf            String   @unique
+  id             Int                 @id @default(autoincrement())
+  cpf            String              @unique
   nome           String
   estado         String
   turma_cesd     String
@@ -43,6 +43,165 @@ model Cadastro {
   cidade         String
   cep            String
   certidao_obito String?
-  data_envio     DateTime @default(now())
-  status         String   @default("CONCLUÍDO")
+  data_envio     DateTime            @default(now())
+  status         String              @default("CONCLUÍDO")
+  officeEntries  OfficeEntry[]
+  documents      AssociateDocument[]
+  monthlyFees    MonthlyFee[]
+  paymentProofs  PaymentProof[]
+  account        MemberAccount?
+}
+
+model MemberAccount {
+  id                      Int       @id @default(autoincrement())
+  cadastroId              Int       @unique
+  cadastro                Cadastro  @relation(fields: [cadastroId], references: [id], onDelete: Restrict)
+  passwordHash            String?
+  passwordCreatedAt       DateTime?
+  activationCodeHash      String?
+  activationCodeExpiresAt DateTime?
+  activationCodeUsedAt    DateTime?
+  failedLoginCount        Int       @default(0)
+  lockedUntil             DateTime?
+  sessionVersion          Int       @default(0)
+  lastLoginAt             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([activationCodeExpiresAt])
+  @@index([lockedUntil])
+}
+
+model AssociationPost {
+  id          Int                         @id @default(autoincrement())
+  title       String
+  summary     String
+  content     String
+  category    String                      @default("INSTITUCIONAL")
+  status      String                      @default("RASCUNHO")
+  audience    String                      @default("ASSOCIADOS")
+  publishedAt DateTime?
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  attachments AssociationPostAttachment[]
+
+  @@index([status, publishedAt])
+  @@index([category, publishedAt])
+}
+
+model AssociationPostAttachment {
+  id        Int             @id @default(autoincrement())
+  postId    Int
+  post      AssociationPost @relation(fields: [postId], references: [id], onDelete: Restrict)
+  title     String
+  fileName  String
+  mimeType  String
+  size      Int
+  content   Bytes
+  createdAt DateTime        @default(now())
+
+  @@index([postId, createdAt])
+}
+
+model OfficeEntry {
+  id              Int             @id @default(autoincrement())
+  cadastroId      Int
+  cadastro        Cadastro        @relation(fields: [cadastroId], references: [id], onDelete: Restrict)
+  kind            String
+  title           String
+  description     String
+  status          String          @default("ABERTO")
+  visibleToMember Boolean         @default(false)
+  dueDate         DateTime?       @db.Date
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  events          OfficeEvent[]
+  messages        OfficeMessage[]
+
+  @@index([cadastroId, createdAt])
+  @@index([cadastroId, visibleToMember, createdAt])
+}
+
+model OfficeMessage {
+  id        Int         @id @default(autoincrement())
+  entryId   Int
+  entry     OfficeEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  sender    String
+  content   String
+  createdAt DateTime    @default(now())
+
+  @@index([entryId, createdAt])
+}
+
+model OfficeEvent {
+  id        Int         @id @default(autoincrement())
+  entryId   Int
+  entry     OfficeEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  status    String
+  note      String
+  createdAt DateTime    @default(now())
+}
+
+model AssociateDocument {
+  id         Int      @id @default(autoincrement())
+  cadastroId Int
+  cadastro   Cadastro @relation(fields: [cadastroId], references: [id], onDelete: Restrict)
+  title      String
+  fileName   String
+  mimeType   String
+  size       Int
+  content    Bytes
+  createdAt  DateTime @default(now())
+
+  @@index([cadastroId, createdAt])
+}
+
+model MonthlyFee {
+  id          Int            @id @default(autoincrement())
+  cadastroId  Int
+  cadastro    Cadastro       @relation(fields: [cadastroId], references: [id], onDelete: Restrict)
+  competence  String
+  amountCents Int
+  dueDate     DateTime       @db.Date
+  notes       String         @default("")
+  createdAt   DateTime       @default(now())
+  payment     FeePayment?
+  proofs      PaymentProof[]
+
+  @@unique([cadastroId, competence])
+  @@index([competence, dueDate])
+}
+
+model PaymentProof {
+  id              Int        @id @default(autoincrement())
+  feeId           Int?
+  fee             MonthlyFee? @relation(fields: [feeId], references: [id], onDelete: Restrict)
+  cadastroId      Int
+  cadastro        Cadastro   @relation(fields: [cadastroId], references: [id], onDelete: Restrict)
+  competence      String
+  amountCents     Int
+  fileName        String
+  mimeType        String
+  size            Int
+  content         Bytes
+  contentHash     String
+  status          String     @default("PENDING")
+  submittedAt     DateTime   @default(now())
+  reviewedAt      DateTime?
+  rejectionReason String?
+
+  @@index([feeId, submittedAt])
+  @@index([status, submittedAt])
+  @@index([cadastroId, competence])
+}
+
+model FeePayment {
+  id          Int        @id @default(autoincrement())
+  feeId       Int        @unique
+  fee         MonthlyFee @relation(fields: [feeId], references: [id], onDelete: Restrict)
+  amountCents Int
+  paidAt      DateTime   @db.Date
+  method      String
+  reference   String     @default("")
+  createdAt   DateTime   @default(now())
 }

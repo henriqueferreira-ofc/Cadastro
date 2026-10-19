@@ -29,6 +29,7 @@ const SuccessScreen: React.FC<SuccessScreenProps> = ({ onRestart }) => {
         <ul className="text-xs sm:text-sm text-blue-800 space-y-2 list-disc list-inside">
           <li>Seu CPF foi marcado como "Atualizado".</li>
           <li>Os dados serão revisados pela administração.</li>
+          <li>Para criar sua senha do portal, solicite o código de ativação à Secretaria.</li>
           <li>Se precisar corrigir algo, solicite atendimento à Secretaria.</li>
         </ul>
       </div>

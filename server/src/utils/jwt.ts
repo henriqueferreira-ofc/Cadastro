@@ -19,6 +19,9 @@ export interface AuthTokenPayload extends jwt.JwtPayload {
   memberId?: number;
   cpf?: string;
   codeHash?: string;
+  accountId?: number;
+  cadastroId?: number;
+  sessionVersion?: number;
 }
 
 export const generateRegistrationToken = (payload: {
@@ -29,6 +32,18 @@ export const generateRegistrationToken = (payload: {
   jwt.sign({ ...payload, scope: 'registration' }, config.jwtSecret, {
     algorithm: 'HS256',
     expiresIn: '15m',
+    issuer,
+    audience,
+  });
+
+export const generateMemberToken = (payload: {
+  accountId: number;
+  cadastroId: number;
+  sessionVersion: number;
+}): string =>
+  jwt.sign({ ...payload, role: 'member', scope: 'member' }, config.jwtSecret, {
+    algorithm: 'HS256',
+    expiresIn: '8h',
     issuer,
     audience,
   });

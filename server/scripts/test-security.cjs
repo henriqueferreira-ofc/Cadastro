@@ -123,6 +123,25 @@ async function main() {
     });
     assert(imported.response.ok && imported.body.imported === 1, 'Importação segura falhou.');
 
+    const paymentGuidance = await request(origin, '/api/auth/registration-guidance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cpf }),
+    });
+    assert(
+      paymentGuidance.response.ok && paymentGuidance.body.status === 'PAYMENT_REQUIRED',
+      'CPF pendente não recebeu orientação de pagamento.',
+    );
+    const unknownGuidance = await request(origin, '/api/auth/registration-guidance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cpf: makeCpf() }),
+    });
+    assert(
+      unknownGuidance.response.ok && unknownGuidance.body.status === 'CONTACT_SECRETARY',
+      'CPF fora da relação recebeu dados de pagamento.',
+    );
+
     const unlock = await request(origin, '/api/auth/admin/members/unlock', {
       method: 'POST',
       headers: adminHeaders,
@@ -133,6 +152,16 @@ async function main() {
       'Código temporário não foi emitido.',
     );
     assert(!JSON.stringify(unlock.body).includes('accessCodeHash'), 'Hash do código vazou na API.');
+
+    const readyGuidance = await request(origin, '/api/auth/registration-guidance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cpf }),
+    });
+    assert(
+      readyGuidance.response.ok && readyGuidance.body.status === 'CODE_READY',
+      'Liberação não disponibilizou a etapa do código.',
+    );
 
     const denied = await request(origin, '/api/auth/registration-access', {
       method: 'POST',
@@ -190,6 +219,15 @@ async function main() {
       Object.keys(created.body.data).sort().join(',') === 'cpf,id',
       'Resposta pública devolveu dados pessoais.',
     );
+    const registeredGuidance = await request(origin, '/api/auth/registration-guidance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cpf }),
+    });
+    assert(
+      registeredGuidance.response.ok && registeredGuidance.body.status === 'ALREADY_REGISTERED',
+      'Cadastro concluído não foi direcionado ao primeiro acesso.',
+    );
 
     const replay = await request(origin, '/api/cadastro', {
       method: 'POST',
@@ -214,7 +252,7 @@ async function main() {
       'Código temporário foi reutilizado.',
     );
 
-    console.log('Segurança integrada: 14 verificações aprovadas.');
+    console.log('Segurança integrada: fluxo cadastral e controles de acesso aprovados.');
   } finally {
     if (server) {
       server.kill('SIGTERM');
