@@ -4,7 +4,25 @@ import { adminSession } from './admin_session';
 
 export type Associate = CadastroEnviado;
 export type EntryStatus = 'ABERTO' | 'EM_ANDAMENTO' | 'CONCLUIDO';
-export type EntryKind = 'ATENDIMENTO' | 'SOLICITACAO' | 'PENDENCIA' | 'OBSERVACAO';
+export type EntryKind = 'ATENDIMENTO' | 'SOLICITACAO' | 'PENDENCIA' | 'OBSERVACAO' | 'ISENCAO';
+export interface EntryAttachment {
+  id: number;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+export interface ExemptionRequest {
+  id: number;
+  title: string;
+  description: string;
+  status: EntryStatus;
+  createdAt: string;
+  forwardedToFinanceAt: string | null;
+  cadastro: { id: number; nome: string; cpf: string };
+  messages: { id: number; sender: 'MEMBER' | 'ADMIN'; content: string; createdAt: string }[];
+  attachments: EntryAttachment[];
+}
 export interface OfficeEntry {
   id: number;
   cadastroId: number;
@@ -13,6 +31,8 @@ export interface OfficeEntry {
   description: string;
   status: EntryStatus;
   visibleToMember: boolean;
+  forwardedToFinanceAt?: string | null;
+  attachments?: EntryAttachment[];
   dueDate: string | null;
   createdAt: string;
   events: { id: number; status: EntryStatus; note: string; createdAt: string }[];
@@ -47,6 +67,7 @@ export interface MonthlyFee {
     reference: string;
     createdAt: string;
   };
+  exemption: null | { id: number; reason: string; grantedBy: string; createdAt: string };
   proofs: PaymentProofSummary[];
 }
 
@@ -63,6 +84,7 @@ export interface PaymentProofSummary {
 }
 
 export interface AdminPaymentProof extends PaymentProofSummary {
+  reviewedBy?: string | null;
   competence: string;
   amountCents: number;
   cadastro: { id: number; cpf: string; nome: string };
@@ -81,6 +103,7 @@ export const kindLabels: Record<EntryKind, string> = {
   SOLICITACAO: 'Solicitação',
   PENDENCIA: 'Pendência',
   OBSERVACAO: 'Observação',
+  ISENCAO: 'Pedido de isenção',
 };
 export const statusLabels: Record<EntryStatus, string> = {
   ABERTO: 'Aberto',
@@ -132,8 +155,20 @@ export function parseMoney(value: string): number {
     throw new Error('Informe um valor entre R$ 0,01 e R$ 1.000.000,00.');
   return cents;
 }
-export function feeStatus(fee: MonthlyFee): 'PAGO' | 'ABERTO' | 'VENCIDO' {
-  return fee.payment ? 'PAGO' : fee.dueDate.slice(0, 10) < today() ? 'VENCIDO' : 'ABERTO';
+export function feeStatus(
+  fee: Pick<MonthlyFee, 'payment' | 'dueDate'> & { exemption?: MonthlyFee['exemption'] },
+): 'PAGO' | 'ISENTO' | 'ABERTO' | 'VENCIDO' {
+  if (fee.payment) return 'PAGO';
+  if (fee.exemption) return 'ISENTO';
+  return fee.dueDate.slice(0, 10) < today() ? 'VENCIDO' : 'ABERTO';
+}
+// Meses consecutivos a partir de "AAAA-MM", para isentar vários meses de uma vez.
+export function monthRange(start: string, count: number): string[] {
+  const [year, month] = start.split('-').map(Number);
+  return Array.from({ length: count }, (_, index) => {
+    const total = year * 12 + (month - 1) + index;
+    return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
+  });
 }
 
 async function request(path: string, options: RequestInit = {}) {
@@ -183,6 +218,9 @@ export async function downloadDocument(document: AssociateDocument) {
 }
 export async function downloadPaymentProof(proof: PaymentProofSummary) {
   await download(`/comprovantes/${proof.id}/arquivo`, proof.fileName);
+}
+export async function downloadEntryAttachment(attachment: EntryAttachment) {
+  await download(`/secretaria/anexos/${attachment.id}/arquivo`, attachment.fileName);
 }
 export async function downloadPostAttachment(attachment: { id: number; fileName: string }) {
   await download(`/comunicados/anexos/${attachment.id}/arquivo`, attachment.fileName);

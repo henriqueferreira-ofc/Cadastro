@@ -7,13 +7,38 @@ import {
   type StandalonePaymentProof,
 } from '../../member_service';
 
+const monthNames = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
+
+const statusLabels: Record<MemberFee['status'], string> = {
+  PAGO: 'Pago',
+  ABERTO: 'Em aberto',
+  VENCIDO: 'Vencido',
+  EM_ANALISE: 'Em análise',
+  ISENTO: 'Isento',
+};
+
 export default function PaymentProofForm({
   fees,
   proofs,
+  currentYear,
   onSent,
 }: {
   fees: MemberFee[];
   proofs: StandalonePaymentProof[];
+  currentYear?: number;
   onSent: () => void;
 }) {
   const [competence, setCompetence] = useState(() =>
@@ -26,13 +51,26 @@ export default function PaymentProofForm({
       .format(new Date())
       .slice(0, 7),
   );
+  const nowYear = currentYear ?? new Date().getFullYear();
+  // Ano vigente (muda sozinho em janeiro) e anos anteriores com histórico.
+  const years = Array.from(
+    new Set([nowYear, ...fees.map((item) => Number(item.competence.slice(0, 4)))]),
+  )
+    .filter((value) => value <= nowYear)
+    .sort((a, b) => b - a);
+  const [selectedYear, selectedMonth] = competence.split('-');
+  const statusOf = (value: string): MemberFee['status'] | null => {
+    const found = fees.find((item) => item.competence === value);
+    if (found) return found.status;
+    return proofs.some((item) => item.competence === value && item.status === 'PENDING')
+      ? 'EM_ANALISE'
+      : null;
+  };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const fee = fees.find((item) => item.competence === competence);
-  const pending =
-    fee?.status === 'EM_ANALISE' ||
-    proofs.some((item) => item.competence === competence && item.status === 'PENDING');
-  const paid = fee?.status === 'PAGO';
+  const pending = statusOf(competence) === 'EM_ANALISE';
+  const paid = fee?.status === 'PAGO' || fee?.status === 'ISENTO';
   const amount = ((fee?.amountCents ?? 4000) / 100).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -73,28 +111,55 @@ export default function PaymentProofForm({
         Já paguei · Enviar comprovante
       </h3>
       <p className="mt-1 text-sm text-blue-900">
-        Escolha o mês do pagamento e anexe o comprovante. Você pode enviar mesmo que a mensalidade
-        ainda não apareça na lista.
+        Escolha o mês do pagamento e anexe o comprovante. Cada mês mostra a situação atual; meses já
+        pagos ou em análise não aceitam novo envio.
       </p>
       <form onSubmit={submit} className="mt-4 space-y-4">
-        <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
-          <label className="text-sm font-bold text-gray-700">
-            Mês do pagamento
-            <input
-              type="month"
-              name="competence"
-              required
-              min="2000-01"
-              max="2100-12"
-              value={competence}
-              disabled={busy}
-              onChange={(event) => {
-                setCompetence(event.target.value);
-                setError('');
-              }}
-              className="mt-2 min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3"
-            />
-          </label>
+        <div className="grid gap-4 sm:grid-cols-[300px_1fr]">
+          <div className="text-sm font-bold text-gray-700">
+            <label htmlFor="proof-month">Mês do pagamento</label>
+            <div className="mt-2 grid grid-cols-[1fr_92px] gap-2">
+              <select
+                id="proof-month"
+                name="competence"
+                required
+                value={competence}
+                disabled={busy}
+                onChange={(event) => {
+                  setCompetence(event.target.value);
+                  setError('');
+                }}
+                className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 font-normal"
+              >
+                {monthNames.map((name, index) => {
+                  const value = `${selectedYear}-${String(index + 1).padStart(2, '0')}`;
+                  const status = statusOf(value);
+                  return (
+                    <option key={value} value={value}>
+                      {name}
+                      {status ? ` · ${statusLabels[status]}` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              <select
+                aria-label="Ano do pagamento"
+                value={selectedYear}
+                disabled={busy}
+                onChange={(event) => {
+                  setCompetence(`${event.target.value}-${selectedMonth}`);
+                  setError('');
+                }}
+                className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-2 font-normal"
+              >
+                {years.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <label className="text-sm font-bold text-gray-700">
             Anexar comprovante (PDF, JPG ou PNG, até 5 MB)
             <input
@@ -114,7 +179,9 @@ export default function PaymentProofForm({
         {(paid || pending) && (
           <p role="status" className="text-sm font-semibold text-blue-900">
             {paid
-              ? 'Este mês já está pago.'
+              ? fee?.status === 'ISENTO'
+                ? 'Este mês está isento pelo Financeiro.'
+                : 'Este mês já está pago.'
               : 'O comprovante deste mês já está em análise. Aguarde a Secretaria.'}
           </p>
         )}

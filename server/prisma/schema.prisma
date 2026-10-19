@@ -104,19 +104,21 @@ model AssociationPostAttachment {
 }
 
 model OfficeEntry {
-  id              Int             @id @default(autoincrement())
-  cadastroId      Int
-  cadastro        Cadastro        @relation(fields: [cadastroId], references: [id], onDelete: Restrict)
-  kind            String
-  title           String
-  description     String
-  status          String          @default("ABERTO")
-  visibleToMember Boolean         @default(false)
-  dueDate         DateTime?       @db.Date
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  events          OfficeEvent[]
-  messages        OfficeMessage[]
+  id                   Int                     @id @default(autoincrement())
+  cadastroId           Int
+  cadastro             Cadastro                @relation(fields: [cadastroId], references: [id], onDelete: Restrict)
+  kind                 String
+  title                String
+  description          String
+  status               String                  @default("ABERTO")
+  visibleToMember      Boolean                 @default(false)
+  forwardedToFinanceAt DateTime?
+  dueDate              DateTime?               @db.Date
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  events               OfficeEvent[]
+  messages             OfficeMessage[]
+  attachments          OfficeEntryAttachment[]
 
   @@index([cadastroId, createdAt])
   @@index([cadastroId, visibleToMember, createdAt])
@@ -166,6 +168,7 @@ model MonthlyFee {
   notes       String         @default("")
   createdAt   DateTime       @default(now())
   payment     FeePayment?
+  exemption   FeeExemption?
   proofs      PaymentProof[]
 
   @@unique([cadastroId, competence])
@@ -173,11 +176,11 @@ model MonthlyFee {
 }
 
 model PaymentProof {
-  id              Int        @id @default(autoincrement())
+  id              Int         @id @default(autoincrement())
   feeId           Int?
   fee             MonthlyFee? @relation(fields: [feeId], references: [id], onDelete: Restrict)
   cadastroId      Int
-  cadastro        Cadastro   @relation(fields: [cadastroId], references: [id], onDelete: Restrict)
+  cadastro        Cadastro    @relation(fields: [cadastroId], references: [id], onDelete: Restrict)
   competence      String
   amountCents     Int
   fileName        String
@@ -185,10 +188,11 @@ model PaymentProof {
   size            Int
   content         Bytes
   contentHash     String
-  status          String     @default("PENDING")
-  submittedAt     DateTime   @default(now())
+  status          String      @default("PENDING")
+  submittedAt     DateTime    @default(now())
   reviewedAt      DateTime?
   rejectionReason String?
+  reviewedBy      String?
 
   @@index([feeId, submittedAt])
   @@index([status, submittedAt])
@@ -204,4 +208,26 @@ model FeePayment {
   method      String
   reference   String     @default("")
   createdAt   DateTime   @default(now())
+}
+
+model FeeExemption {
+  id        Int        @id @default(autoincrement())
+  feeId     Int        @unique
+  fee       MonthlyFee @relation(fields: [feeId], references: [id], onDelete: Restrict)
+  reason    String
+  grantedBy String     @default("Financeiro")
+  createdAt DateTime   @default(now())
+}
+
+model OfficeEntryAttachment {
+  id        Int         @id @default(autoincrement())
+  entryId   Int
+  entry     OfficeEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  fileName  String
+  mimeType  String
+  size      Int
+  content   Bytes
+  createdAt DateTime    @default(now())
+
+  @@index([entryId])
 }

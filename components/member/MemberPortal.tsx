@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import {
   Bell,
   CalendarDays,
@@ -18,7 +17,6 @@ import {
   RefreshCw,
   UserRound,
   Wallet,
-  Copy,
   Download,
   Upload,
   X,
@@ -29,7 +27,6 @@ import {
   MemberPost,
   MemberSecretaryEntry,
   MemberService,
-  PixCharge,
   memberFileBase64,
 } from '../../member_service';
 import { memberSession } from '../../member_session';
@@ -37,6 +34,7 @@ import { memberFinance, type FinanceFilter } from '../../member_finance';
 import { formatCEP, formatCPF, formatPhone } from '../../utils';
 import AafabPixPayment from '../AafabPixPayment';
 import PaymentProofForm from './PaymentProofForm';
+import ExemptionRequestForm from './ExemptionRequestForm';
 
 type MemberPage = 'HOME' | 'WORK' | 'SECRETARY' | 'FINANCE' | 'PROFILE';
 
@@ -45,6 +43,7 @@ const feeColors: Record<MemberFee['status'], string> = {
   ABERTO: 'text-amber-700',
   VENCIDO: 'text-red-700',
   EM_ANALISE: 'text-blue-700',
+  ISENTO: 'text-violet-700',
 };
 
 const pages: Array<{
@@ -189,7 +188,9 @@ function EntryCard({
               ? 'Solicitação'
               : entry.kind === 'PENDENCIA'
                 ? 'Pendência'
-                : 'Atendimento'}
+                : entry.kind === 'ISENCAO'
+                  ? 'Pedido de isenção'
+                  : 'Atendimento'}
           </p>
           <h3 className="mt-1 font-bold text-gray-900">{entry.title}</h3>
         </div>
@@ -215,6 +216,24 @@ function EntryCard({
         <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-gray-600">
           {entry.description}
         </p>
+      )}
+      {!!entry.attachments?.length && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {entry.attachments.map((file) => (
+            <button
+              key={file.id}
+              type="button"
+              onClick={() =>
+                MemberService.downloadEntryAttachment(file.id, file.fileName).catch((caught) =>
+                  setError(caught instanceof Error ? caught.message : 'Falha ao baixar.'),
+                )
+              }
+              className="min-h-10 text-xs font-semibold text-blue-700 underline"
+            >
+              Baixar anexo enviado: {file.fileName}
+            </button>
+          ))}
+        </div>
       )}
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-gray-100 pt-3 text-xs text-gray-400">
         <span>Aberto em {date(entry.createdAt)}</span>
@@ -261,15 +280,13 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
   const [sending, setSending] = useState(false);
   const [requestError, setRequestError] = useState('');
   const [requestSuccess, setRequestSuccess] = useState('');
-  const [year, setYear] = useState('TODOS');
+  const [year, setYear] = useState(() => String(new Date().getFullYear()));
   const [financeFilter, setFinanceFilter] = useState<FinanceFilter>('TODOS');
   const [paymentFee, setPaymentFee] = useState<MemberFee | null>(null);
   const [paymentMode, setPaymentMode] = useState<'PIX' | 'PROOF'>('PIX');
-  const [pix, setPix] = useState<PixCharge | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [financeMessage, setFinanceMessage] = useState('');
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -293,11 +310,12 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
   const years = useMemo(
     () =>
       Array.from(
-        new Set<string>(
-          [...(overview?.finance.fees || []), ...(overview?.finance.standaloneProofs || [])].map(
+        new Set<string>([
+          String(overview?.finance.currentYear ?? new Date().getFullYear()),
+          ...[...(overview?.finance.fees || []), ...(overview?.finance.standaloneProofs || [])].map(
             (item) => item.competence.slice(0, 4),
           ),
-        ),
+        ]),
       ).sort((a, b) => b.localeCompare(a)),
     [overview],
   );
@@ -305,6 +323,7 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
     fees: filteredFees,
     proofs: filteredProofs,
     categories: financeGroups,
+    exempt: exemptFees,
   } = memberFinance(
     overview?.finance.fees || [],
     year,
@@ -351,24 +370,11 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
     setRevision((current) => current + 1);
   }
 
-  async function openPayment(fee: MemberFee, mode: 'PIX' | 'PROOF' = 'PIX') {
+  function openPayment(fee: MemberFee, mode: 'PIX' | 'PROOF' = 'PIX') {
     setPaymentFee(fee);
     setPaymentMode(mode);
-    setPix(null);
     setPaymentError('');
-    setCopied(false);
-    if (mode === 'PROOF') {
-      setPaymentLoading(false);
-      return;
-    }
-    setPaymentLoading(true);
-    try {
-      setPix(await MemberService.pixForFee(fee.id));
-    } catch (caught) {
-      setPaymentError(caught instanceof Error ? caught.message : 'Não foi possível gerar o Pix.');
-    } finally {
-      setPaymentLoading(false);
-    }
+    setPaymentLoading(false);
   }
 
   async function sendProof(event: React.FormEvent<HTMLFormElement>) {
@@ -391,7 +397,6 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
         content: await memberFileBase64(file),
       });
       setPaymentFee(null);
-      setPix(null);
       setFinanceMessage(
         'Comprovante enviado. A mensalidade ficará “Em análise” até a conferência da Secretaria.',
       );
@@ -655,6 +660,8 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
             </button>
           </form>
 
+          <ExemptionRequestForm onSent={() => setRevision((current) => current + 1)} />
+
           <div>
             <h3 className="mb-3 text-lg font-bold text-gray-900">
               Meus atendimentos e solicitações
@@ -714,18 +721,34 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
           <PaymentProofForm
             fees={overview.finance.fees}
             proofs={overview.finance.standaloneProofs || []}
+            currentYear={overview.finance.currentYear}
             onSent={() => {
               setFinanceMessage(
                 'Comprovante enviado à Secretaria. O pagamento ficará em análise até a aprovação.',
               );
               setFinanceFilter('EM_ANALISE');
-              setYear('TODOS');
               setRevision((current) => current + 1);
             }}
           />
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {financeGroups.map((group) => (
+          <div
+            className={`grid grid-cols-2 gap-3 ${exemptFees.length ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}
+          >
+            {[
+              ...financeGroups,
+              ...(exemptFees.length
+                ? [
+                    {
+                      status: 'ISENTO' as const,
+                      label: 'Isento',
+                      fees: exemptFees,
+                      proofs: [],
+                      count: exemptFees.length,
+                      total: exemptFees.reduce((sum, fee) => sum + fee.amountCents, 0),
+                    },
+                  ]
+                : []),
+            ].map((group) => (
               <button
                 key={group.status}
                 type="button"
@@ -735,7 +758,13 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
                 className={`rounded-xl border bg-white p-4 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${financeFilter === group.status ? 'border-blue-600 ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-300'}`}
               >
                 <span className="block text-xs font-medium text-gray-500">{group.label}</span>
-                <span className={`mt-1 block text-2xl font-extrabold ${feeColors[group.status]}`}>
+                <span className={`mt-1 block text-3xl font-extrabold ${feeColors[group.status]}`}>
+                  {group.count}
+                  <span className="ml-1.5 text-sm font-semibold text-gray-400">
+                    {group.count === 1 ? 'mensalidade' : 'mensalidades'}
+                  </span>
+                </span>
+                <span className="mt-1 block text-sm font-semibold text-gray-500">
                   {money(group.total)}
                 </span>
                 <span className="mt-3 flex flex-wrap gap-1.5">
@@ -823,7 +852,9 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
                                   ? 'bg-blue-50 text-blue-700'
                                   : fee.status === 'VENCIDO'
                                     ? 'bg-red-50 text-red-700'
-                                    : 'bg-amber-50 text-amber-800'
+                                    : fee.status === 'ISENTO'
+                                      ? 'bg-violet-50 text-violet-700'
+                                      : 'bg-amber-50 text-amber-800'
                             }`}
                           >
                             {fee.status === 'PAGO'
@@ -832,12 +863,19 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
                                 ? 'Em análise'
                                 : fee.status === 'VENCIDO'
                                   ? 'Vencido'
-                                  : 'Em aberto'}
+                                  : fee.status === 'ISENTO'
+                                    ? 'Isento'
+                                    : 'Em aberto'}
                           </span>
                         </div>
                         {fee.payment && (
                           <p className="mt-1 text-xs text-gray-400">
                             Pago em {dateOnly(fee.payment.paidAt)}
+                          </p>
+                        )}
+                        {fee.exemption && (
+                          <p className="mt-1 text-xs text-violet-700">
+                            Isento pelo Financeiro: {fee.exemption.reason}
                           </p>
                         )}
                         {fee.proof?.status === 'REJECTED' && (
@@ -847,7 +885,7 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
                         )}
                       </div>
                       <div className="flex flex-col items-start gap-2">
-                        {!fee.payment && fee.status !== 'EM_ANALISE' ? (
+                        {!fee.payment && fee.status !== 'EM_ANALISE' && fee.status !== 'ISENTO' ? (
                           <>
                             <button
                               type="button"
@@ -867,6 +905,10 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
                         ) : fee.status === 'EM_ANALISE' ? (
                           <span className="text-xs font-semibold text-blue-700">
                             Aguardando aprovação
+                          </span>
+                        ) : fee.status === 'ISENTO' ? (
+                          <span className="text-xs font-semibold text-violet-700">
+                            Sem cobrança
                           </span>
                         ) : (
                           <span className="text-xs text-gray-400">Confirmado</span>
@@ -897,7 +939,7 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
                 text={
                   overview.finance.fees.length
                     ? 'Não há mensalidades para o ano e a situação selecionados.'
-                    : 'Você ainda não tem mensalidades registradas. Se já pagou, escolha o mês e anexe o comprovante no formulário acima.'
+                    : 'Não há mensalidades neste ano. Se já pagou, escolha o mês e anexe o comprovante no formulário acima.'
                 }
               />
             ) : null}
@@ -944,20 +986,6 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
             análise” e só aparece como “Pago” depois da aprovação da Secretaria no Financeiro da
             AAFAB.
           </p>
-          <section
-            className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm sm:p-5"
-            aria-labelledby="aafab-pix-title"
-          >
-            <h3 id="aafab-pix-title" className="text-lg font-bold text-gray-900">
-              Pix da AAFAB · R$ 40,00
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Mesma chave Pix e QR Code da página de cadastro. Depois de pagar, anexe o comprovante
-              no formulário acima. Se o valor da sua mensalidade for diferente, use o botão “Pagar
-              via Pix” do mês correspondente.
-            </p>
-            <AafabPixPayment />
-          </section>
         </section>
       )}
 
@@ -1051,99 +1079,41 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
               </button>
             </div>
 
-            {paymentLoading && !pix && paymentMode === 'PIX' ? (
-              <p className="py-10 text-center text-sm font-semibold text-gray-500">Gerando Pix…</p>
-            ) : pix || paymentMode === 'PROOF' ? (
-              <form onSubmit={sendProof} className="mt-5 space-y-5">
-                {pix && (
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-center">
-                    <div className="mx-auto inline-flex rounded-xl bg-white p-3 shadow-sm">
-                      <QRCodeSVG
-                        value={pix.payload}
-                        size={190}
-                        level="M"
-                        title="QR Code Pix da mensalidade"
-                      />
-                    </div>
-                    <p className="mt-3 text-sm font-bold text-blue-950">{pix.receiverName}</p>
-                    <p className="mt-1 text-xs text-blue-800">Chave Pix: {pix.key}</p>
-                    <label className="mt-3 block text-left text-xs font-semibold text-blue-900">
-                      Pix copia e cola
-                      <textarea
-                        readOnly
-                        value={pix.payload}
-                        rows={3}
-                        onFocus={(event) => event.currentTarget.select()}
-                        className="mt-1 w-full rounded-lg border border-blue-200 bg-white p-2 text-xs font-normal"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard
-                          .writeText(pix.payload)
-                          .then(() => setCopied(true))
-                          .catch(() =>
-                            setPaymentError(
-                              'Não foi possível copiar. Selecione e copie o código Pix acima.',
-                            ),
-                          );
-                      }}
-                      className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-blue-700 shadow-sm"
-                    >
-                      <Copy className="h-4 w-4" />{' '}
-                      {copied ? 'Pix copiado' : 'Copiar Pix copia e cola'}
-                    </button>
-                  </div>
-                )}
-
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-900">
-                  Após pagar, envie o comprovante abaixo. A Secretaria fará a conferência antes de
-                  registrar a mensalidade como paga.
+            <form onSubmit={sendProof} className="mt-5 space-y-5">
+              {paymentMode === 'PIX' && (
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                  <AafabPixPayment />
                 </div>
-                <label className="block text-sm font-bold text-gray-700">
-                  Comprovante (PDF, JPG ou PNG, até 5 MB)
-                  <input
-                    name="proof"
-                    type="file"
-                    required
-                    accept="application/pdf,image/jpeg,image/png"
-                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm"
-                  />
-                </label>
-                {paymentError && (
-                  <p role="alert" className="text-sm font-semibold text-red-600">
-                    {paymentError}
-                  </p>
-                )}
-                <button
-                  type="submit"
-                  disabled={paymentLoading}
-                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-60"
-                >
-                  <Upload className="h-4 w-4" />
-                  {paymentLoading ? 'Enviando…' : 'Enviar comprovante para aprovação'}
-                </button>
-              </form>
-            ) : (
-              <div className="py-8 text-center">
-                <p className="text-sm font-semibold text-red-600">{paymentError}</p>
-                <button
-                  type="button"
-                  onClick={() => void openPayment(paymentFee)}
-                  className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white"
-                >
-                  Tentar novamente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void openPayment(paymentFee, 'PROOF')}
-                  className="mt-3 block min-h-10 w-full text-sm font-semibold text-blue-700"
-                >
-                  Já paguei · Enviar comprovante
-                </button>
+              )}
+
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-900">
+                Após pagar, envie o comprovante abaixo. A Secretaria fará a conferência antes de
+                registrar a mensalidade como paga.
               </div>
-            )}
+              <label className="block text-sm font-bold text-gray-700">
+                Comprovante (PDF, JPG ou PNG, até 5 MB)
+                <input
+                  name="proof"
+                  type="file"
+                  required
+                  accept="application/pdf,image/jpeg,image/png"
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm"
+                />
+              </label>
+              {paymentError && (
+                <p role="alert" className="text-sm font-semibold text-red-600">
+                  {paymentError}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={paymentLoading}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-60"
+              >
+                <Upload className="h-4 w-4" />
+                {paymentLoading ? 'Enviando…' : 'Enviar comprovante para aprovação'}
+              </button>
+            </form>
           </div>
         </div>
       )}

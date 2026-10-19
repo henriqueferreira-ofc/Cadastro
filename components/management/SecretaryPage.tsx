@@ -13,6 +13,7 @@ import {
   today,
   fileBase64,
   downloadDocument,
+  downloadEntryAttachment,
 } from '../../management_service';
 import { formatCPF, formatPhone, formatCEP } from '../../utils';
 import {
@@ -180,6 +181,21 @@ export default function SecretaryPage() {
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível alterar a visibilidade.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function forwardToFinance(entry: OfficeEntry) {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await managementApi(`/secretaria/registros/${entry.id}/financeiro`, {});
+      setMessage('Pedido encaminhado ao Financeiro. O associado foi avisado na conversa.');
+      setRevision((value) => value + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível encaminhar ao Financeiro.');
     } finally {
       setBusy(false);
     }
@@ -491,6 +507,24 @@ export default function SecretaryPage() {
                                   ))}
                                 </div>
                               )}
+                              {!!entry.attachments?.length && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {entry.attachments.map((file) => (
+                                    <button
+                                      key={file.id}
+                                      className={secondaryClass}
+                                      onClick={() =>
+                                        downloadEntryAttachment(file).catch((e) =>
+                                          setError(e instanceof Error ? e.message : 'Falha ao baixar.'),
+                                        )
+                                      }
+                                    >
+                                      <Download className="mr-1 inline h-4 w-4" />
+                                      {file.fileName}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                               <p
                                 className={`mt-3 text-xs ${entry.dueDate && entry.dueDate.slice(0, 10) < today() && entry.status !== 'CONCLUIDO' ? 'font-semibold text-red-600' : 'text-gray-400'}`}
                               >
@@ -508,6 +542,18 @@ export default function SecretaryPage() {
                                 >
                                   Responder associado
                                 </button>
+                                {entry.kind === 'ISENCAO' && entry.status !== 'CONCLUIDO' && (
+                                  <button
+                                    className={secondaryClass}
+                                    disabled={busy || !!entry.forwardedToFinanceAt}
+                                    onClick={() => forwardToFinance(entry)}
+                                    title="Envia o pedido, com a justificativa e os anexos, para o Financeiro decidir"
+                                  >
+                                    {entry.forwardedToFinanceAt
+                                      ? 'Encaminhado ao Financeiro'
+                                      : 'Encaminhar ao Financeiro'}
+                                  </button>
+                                )}
                                 <button
                                   className={secondaryClass}
                                   onClick={() => {
@@ -611,7 +657,9 @@ export default function SecretaryPage() {
                 value={kind}
                 onChange={(e) => setKind(e.target.value as EntryKind)}
               >
-                {Object.entries(kindLabels).map(([value, label]) => (
+                {Object.entries(kindLabels)
+                  .filter(([value]) => value !== 'ISENCAO')
+                  .map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>

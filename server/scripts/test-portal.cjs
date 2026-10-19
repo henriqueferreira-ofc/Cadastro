@@ -152,6 +152,7 @@ const cadastroData = (cpf, suffix) => ({
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  processHandle.stderr.on('data', (chunk) => process.env.TEST_DEBUG && process.stderr.write(chunk));
   base = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Servidor de teste não iniciou')), 20000);
     processHandle.stdout.on('data', (chunk) => {
@@ -231,8 +232,13 @@ const cadastroData = (cpf, suffix) => ({
     assert.equal(response.status, 200);
     const data = await response.json();
     assert.equal(data.profile.id, first.id);
-    assert.equal(data.finance.fees.length, 1);
-    assert.equal(data.finance.fees[0].amountCents, 5000);
+    const currentYear = String(data.finance.currentYear);
+    assert.equal(
+      data.finance.fees.filter((fee) => fee.competence.startsWith(`${currentYear}-`)).length,
+      12,
+    );
+    assert.equal(data.finance.fees.find((fee) => fee.competence === '2026-09').amountCents, 5000);
+    assert(!data.finance.fees.some((fee) => fee.amountCents === 9900));
     assert.equal(data.secretary.entries.length, 1);
     assert.equal(data.secretary.entries[0].title, 'Atendimento do primeiro associado');
     assert.deepEqual(
@@ -395,8 +401,8 @@ const cadastroData = (cpf, suffix) => ({
     );
     let overview = await call('/member/overview', undefined, memberToken);
     let data = await overview.json();
-    assert.equal(data.finance.fees[0].status, 'EM_ANALISE');
-    assert.equal(data.finance.fees[0].payment, null);
+    assert.equal(data.finance.fees.find((item) => item.id === fee.id).status, 'EM_ANALISE');
+    assert.equal(data.finance.fees.find((item) => item.id === fee.id).payment, null);
     assert.equal(
       (
         await call(
@@ -420,8 +426,8 @@ const cadastroData = (cpf, suffix) => ({
     );
     overview = await call('/member/overview', undefined, memberToken);
     data = await overview.json();
-    assert.equal(data.finance.fees[0].status, 'PAGO');
-    assert.equal(data.finance.fees[0].payment.amountCents, 5000);
+    assert.equal(data.finance.fees.find((item) => item.id === fee.id).status, 'PAGO');
+    assert.equal(data.finance.fees.find((item) => item.id === fee.id).payment.amountCents, 5000);
     assert.equal(await db.feePayment.count({ where: { feeId: fee.id } }), 1);
     assert.equal((await call('/member/finance/proofs', body, memberToken)).status, 409);
   });
@@ -453,9 +459,9 @@ const cadastroData = (cpf, suffix) => ({
     const fee = await db.monthlyFee.create({
       data: {
         cadastroId: first.id,
-        competence: '2026-10',
+        competence: '2025-10',
         amountCents: 5500,
-        dueDate: new Date('2026-10-10T00:00:00.000Z'),
+        dueDate: new Date('2025-10-10T00:00:00.000Z'),
       },
     });
     const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]).toString('base64');
@@ -501,7 +507,7 @@ const cadastroData = (cpf, suffix) => ({
   await check(
     'envio sem lançamento fica em análise e aprovação cria um único pagamento',
     async () => {
-      const body = { ...directProof('2026-01'), cadastroId: second.id, amountCents: 1 };
+      const body = { ...directProof('2025-01'), cadastroId: second.id, amountCents: 1 };
       const responses = await Promise.all([
         call('/member/finance/proofs', body, memberToken),
         call('/member/finance/proofs', body, memberToken),
@@ -525,14 +531,14 @@ const cadastroData = (cpf, suffix) => ({
       const shown = inbox.find((item) => item.id === proof.id);
       assert.equal(shown.fee, null);
       assert.equal(shown.cadastro.id, first.id);
-      assert.equal(shown.competence, '2026-01');
+      assert.equal(shown.competence, '2025-01');
       const file = await call(`/member/finance/proofs/${proof.id}/file`, undefined, memberToken);
       assert.equal(file.status, 200);
       assert.deepEqual(Buffer.from(await file.arrayBuffer()), Buffer.from(body.content, 'base64'));
       const other = await db.paymentProof.create({
         data: {
           cadastroId: second.id,
-          competence: '2026-01',
+          competence: '2025-01',
           amountCents: 4000,
           fileName: body.fileName,
           mimeType: body.mimeType,
@@ -551,7 +557,7 @@ const cadastroData = (cpf, suffix) => ({
         (
           await call(
             `/gestao/comprovantes/${proof.id}/aprovar`,
-            { paidAt: '2026-01-12' },
+            { paidAt: '2025-01-12' },
             adminToken,
           )
         ).status,
@@ -565,7 +571,7 @@ const cadastroData = (cpf, suffix) => ({
         [1, 2].map(() =>
           call(
             `/gestao/comprovantes/${proof.id}/aprovar`,
-            { paidAt: '2026-01-12', dueDate: '2026-01-10' },
+            { paidAt: '2025-01-12', dueDate: '2025-01-10' },
             adminToken,
           ),
         ),
@@ -584,7 +590,7 @@ const cadastroData = (cpf, suffix) => ({
   await check(
     'recusa sem lançamento permite reenvio e lançamento posterior vincula a análise',
     async () => {
-      const body = directProof('2026-02');
+      const body = directProof('2025-02');
       let response = await call('/member/finance/proofs', body, memberToken);
       assert.equal(response.status, 201);
       const rejected = await response.json();
@@ -614,7 +620,7 @@ const cadastroData = (cpf, suffix) => ({
         cadastroId: first.id,
         competence: body.competence,
         amountCents: 4000,
-        dueDate: '2026-02-10',
+        dueDate: '2025-02-10',
       };
       assert.equal(
         (await call('/gestao/mensalidades', { ...feeBody, amountCents: 5000 }, adminToken)).status,
@@ -628,7 +634,7 @@ const cadastroData = (cpf, suffix) => ({
         (
           await call(
             `/gestao/mensalidades/${fee.id}/pagamento`,
-            { paidAt: '2026-02-12', method: 'PIX' },
+            { paidAt: '2025-02-12', method: 'PIX' },
             adminToken,
           )
         ).status,
@@ -638,7 +644,7 @@ const cadastroData = (cpf, suffix) => ({
         (
           await call(
             `/gestao/comprovantes/${pending.id}/aprovar`,
-            { paidAt: '2026-02-12' },
+            { paidAt: '2025-02-12' },
             adminToken,
           )
         ).status,
@@ -653,14 +659,14 @@ const cadastroData = (cpf, suffix) => ({
       await db.monthlyFee.create({
         data: {
           cadastroId: first.id,
-          competence: '2026-03',
+          competence: '2025-03',
           amountCents: 6200,
-          dueDate: new Date('2026-03-10'),
+          dueDate: new Date('2025-03-10'),
         },
       });
       const response = await call(
         '/member/finance/proofs',
-        { ...directProof('2026-03'), amountCents: 1 },
+        { ...directProof('2025-03'), amountCents: 1 },
         memberToken,
       );
       assert.equal(response.status, 201);
@@ -670,7 +676,7 @@ const cadastroData = (cpf, suffix) => ({
         6200,
       );
       for (const patch of [
-        { competence: '2026-13' },
+        { competence: '2025-13' },
         { competence: '' },
         { content: 'bm90LWEtcG5n' },
       ]) {
@@ -678,13 +684,252 @@ const cadastroData = (cpf, suffix) => ({
           (
             await call(
               '/member/finance/proofs',
-              { ...directProof('2026-04'), ...patch },
+              { ...directProof('2025-04'), ...patch },
               memberToken,
             )
           ).status,
           400,
         );
       }
+    },
+  );
+
+  await check(
+    'mensalidades do ano são geradas sem duplicar, vencem após o dia 15 e não se sobrepõem',
+    async () => {
+      const read = async () => (await call('/member/overview', undefined, memberToken)).json();
+      await read();
+      const data = await read();
+      const year = String(data.finance.currentYear);
+      const yearFees = data.finance.fees.filter((fee) => fee.competence.startsWith(`${year}-`));
+      assert.equal(yearFees.length, 12);
+      assert.equal(
+        await db.monthlyFee.count({
+          where: { cadastroId: first.id, competence: { startsWith: `${year}-` } },
+        }),
+        12,
+      );
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(
+        new Date(),
+      );
+      for (const fee of yearFees.filter((item) => item.competence !== '2026-09')) {
+        if (fee.status === 'PAGO' || fee.status === 'EM_ANALISE') continue;
+        assert.equal(fee.dueDate.slice(0, 10), `${fee.competence}-15`);
+        assert.equal(fee.status, `${fee.competence}-15` < today ? 'VENCIDO' : 'ABERTO');
+      }
+      const counts = { PAGO: 0, ABERTO: 0, VENCIDO: 0, EM_ANALISE: 0 };
+      for (const fee of yearFees) counts[fee.status] += 1;
+      assert.equal(
+        Object.values(counts).reduce((sum, value) => sum + value, 0),
+        12,
+      );
+      const reviewed = (
+        await (await call('/gestao/comprovantes?status=APPROVED', undefined, adminToken)).json()
+      )[0];
+      assert.equal(reviewed.reviewedBy, 'Secretaria');
+      assert(reviewed.reviewedAt);
+    },
+  );
+
+  await check(
+    'Financeiro isenta vários meses com justificativa e o portal reflete a isenção',
+    async () => {
+      const exempt = (body) => call('/gestao/isencoes', body, adminToken);
+      const png = directProof('2025-06');
+      assert.equal(
+        (await exempt({ cadastroId: first.id, competences: ['2025-06'], reason: '' })).status,
+        400,
+      );
+      assert.equal(
+        (await exempt({ cadastroId: first.id, competences: [], reason: 'x' })).status,
+        400,
+      );
+      // mês já pago é preservado e informado; os demais meses do período são isentados
+      const paid = await db.monthlyFee.findUnique({
+        where: { cadastroId_competence: { cadastroId: first.id, competence: '2026-09' } },
+      });
+      assert.equal(
+        (await exempt({ cadastroId: first.id, competences: ['2026-09'], reason: 'x' })).status,
+        409,
+      );
+      const mixed = await exempt({
+        cadastroId: first.id,
+        competences: ['2025-05', '2026-09'],
+        reason: 'x',
+      });
+      assert.equal(mixed.status, 201);
+      assert.deepEqual(await mixed.json(), { granted: 1, skipped: 0, blocked: ['2026-09'] });
+      assert.equal(await db.feePayment.count({ where: { feeId: paid.id } }), 1);
+      assert.equal(await db.feeExemption.count({ where: { feeId: paid.id } }), 0);
+      const granted = await exempt({
+        cadastroId: first.id,
+        competences: ['2025-05', '2025-06', '2025-07'],
+        reason: 'Associado desempregado.',
+      });
+      assert.equal(granted.status, 201);
+      assert.deepEqual(await granted.json(), { granted: 2, skipped: 1, blocked: [] });
+      assert.equal(
+        (
+          await (
+            await exempt({ cadastroId: first.id, competences: ['2025-05'], reason: 'x' })
+          ).json()
+        ).skipped,
+        1,
+      );
+      let data = await (await call('/member/overview', undefined, memberToken)).json();
+      const fee = data.finance.fees.find((item) => item.competence === '2025-06');
+      assert.equal(fee.status, 'ISENTO');
+      assert.equal(fee.exemption.reason, 'Associado desempregado.');
+      assert.equal(await db.feePayment.count({ where: { feeId: fee.id } }), 0);
+      assert.equal((await call('/member/finance/proofs', png, memberToken)).status, 409);
+      assert.equal(
+        (await call(`/member/finance/fees/${fee.id}/pix`, undefined, memberToken)).status,
+        409,
+      );
+      assert.equal(
+        (
+          await call(
+            `/gestao/mensalidades/${fee.id}/pagamento`,
+            { paidAt: '2026-10-01', method: 'PIX' },
+            adminToken,
+          )
+        ).status,
+        409,
+      );
+      assert.equal(
+        (await call(`/gestao/mensalidades/${paid.id}/isencao/revogar`, {}, adminToken)).status,
+        404,
+      );
+      assert.equal(
+        (await call(`/gestao/mensalidades/${fee.id}/isencao/revogar`, {}, adminToken)).status,
+        200,
+      );
+      data = await (await call('/member/overview', undefined, memberToken)).json();
+      assert.notEqual(data.finance.fees.find((item) => item.id === fee.id).status, 'ISENTO');
+      assert.equal((await call('/member/finance/proofs', png, memberToken)).status, 201);
+    },
+  );
+
+  await check(
+    'pedido de isenção com laudo passa pela Secretaria e o Financeiro decide',
+    async () => {
+      const png = directProof('2025-01').content;
+      const send = (body, token = memberToken) =>
+        call('/member/secretaria/exemption-requests', body, token);
+      assert.equal((await send({ description: '' })).status, 400);
+      assert.equal(
+        (
+          await send({
+            description: 'Laudo',
+            fileName: 'l.exe',
+            mimeType: 'text/plain',
+            content: png,
+          })
+        ).status,
+        400,
+      );
+      const created = await send({
+        description: 'Estou em tratamento e sem renda.',
+        period: 'jan/2027 a dez/2027',
+        fileName: 'laudo.png',
+        mimeType: 'image/png',
+        content: png,
+      });
+      assert.equal(created.status, 201, await created.clone().text());
+      const { id } = await created.json();
+      const overview = await (await call('/member/overview', undefined, memberToken)).json();
+      const mine = overview.secretary.entries.find((item) => item.id === id);
+      assert.equal(mine.kind, 'ISENCAO');
+      assert.equal(mine.attachments.length, 1);
+      const file = await call(
+        `/member/secretaria/attachments/${mine.attachments[0].id}/file`,
+        undefined,
+        memberToken,
+      );
+      assert.equal(file.status, 200);
+      // Secretaria enxerga o pedido e o anexo; o Financeiro só vê depois do encaminhamento
+      const inbox = await (
+        await call('/gestao/secretaria/solicitacoes', undefined, adminToken)
+      ).json();
+      assert.equal(inbox.find((item) => item.id === id).attachments.length, 1);
+      assert.equal(
+        (await (await call('/gestao/isencoes/pedidos', undefined, adminToken)).json()).length,
+        0,
+      );
+      assert.equal(
+        (
+          await call(
+            `/gestao/secretaria/anexos/${mine.attachments[0].id}/arquivo`,
+            undefined,
+            adminToken,
+          )
+        ).status,
+        200,
+      );
+      assert.equal(
+        (await call(`/gestao/secretaria/registros/${id}/financeiro`, {}, adminToken)).status,
+        200,
+      );
+      assert.equal(
+        (await call(`/gestao/secretaria/registros/${id}/financeiro`, {}, adminToken)).status,
+        409,
+      );
+      const queue = await (await call('/gestao/isencoes/pedidos', undefined, adminToken)).json();
+      assert.equal(queue.length, 1);
+      // outro associado não consegue baixar o laudo
+      const other = await call(
+        `/member/secretaria/attachments/${mine.attachments[0].id}/file`,
+        undefined,
+        adminToken,
+      );
+      assert.equal(other.status, 401);
+      const granted = await call(
+        '/gestao/isencoes',
+        {
+          cadastroId: first.id,
+          requestId: id,
+          competences: ['2027-01', '2027-02'],
+          reason: 'Laudo médico conferido.',
+        },
+        adminToken,
+      );
+      assert.equal(granted.status, 201, await granted.clone().text());
+      assert.equal(
+        (await (await call('/gestao/isencoes/pedidos', undefined, adminToken)).json()).length,
+        0,
+      );
+      const after = await (await call('/member/overview', undefined, memberToken)).json();
+      const done = after.secretary.entries.find((item) => item.id === id);
+      assert.equal(done.status, 'CONCLUIDO');
+      assert(
+        done.messages.some((m) => m.sender === 'ADMIN' && m.content.includes('Isenção aprovada')),
+      );
+      assert.equal(
+        after.finance.fees.find((item) => item.competence === '2027-01').status,
+        'ISENTO',
+      );
+      // recusa devolve o motivo
+      const second = await (await send({ description: 'Outro pedido.' })).json();
+      await call(`/gestao/secretaria/registros/${second.id}/financeiro`, {}, adminToken);
+      assert.equal(
+        (await call(`/gestao/isencoes/pedidos/${second.id}/recusar`, { reason: '' }, adminToken))
+          .status,
+        400,
+      );
+      assert.equal(
+        (
+          await call(
+            `/gestao/isencoes/pedidos/${second.id}/recusar`,
+            { reason: 'Sem documento comprobatório.' },
+            adminToken,
+          )
+        ).status,
+        200,
+      );
+      const final = await (await call('/member/overview', undefined, memberToken)).json();
+      const declined = final.secretary.entries.find((item) => item.id === second.id);
+      assert.equal(declined.status, 'CONCLUIDO');
+      assert(declined.messages.some((m) => m.content.includes('Sem documento comprobatório.')));
     },
   );
 
