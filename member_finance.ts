@@ -32,12 +32,14 @@ export function memberFinance(
       ...category,
       fees: categoryFees,
       proofs: categoryProofs,
+      count: categoryFees.length + categoryProofs.length,
       total:
         categoryFees.reduce((sum, fee) => sum + (fee.payment?.amountCents ?? fee.amountCents), 0) +
         categoryProofs.reduce((sum, proof) => sum + proof.amountCents, 0),
     };
   });
   return {
+    exempt: yearFees.filter((fee) => fee.status === 'ISENTO'),
     categories,
     fees: yearFees.filter((fee) => status === 'TODOS' || fee.status === status),
     proofs: yearProofs.filter(

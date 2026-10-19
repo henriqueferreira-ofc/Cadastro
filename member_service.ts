@@ -37,7 +37,8 @@ export interface MemberPost {
 
 export interface MemberSecretaryEntry {
   id: number;
-  kind: 'ATENDIMENTO' | 'SOLICITACAO' | 'PENDENCIA';
+  kind: 'ATENDIMENTO' | 'SOLICITACAO' | 'PENDENCIA' | 'ISENCAO';
+  attachments?: Array<{ id: number; fileName: string; mimeType: string; size: number }>;
   title: string;
   description: string;
   status: 'ABERTO' | 'EM_ANDAMENTO' | 'CONCLUIDO';
@@ -58,7 +59,8 @@ export interface MemberFee {
   amountCents: number;
   dueDate: string;
   notes: string;
-  status: 'PAGO' | 'ABERTO' | 'VENCIDO' | 'EM_ANALISE';
+  status: 'PAGO' | 'ABERTO' | 'VENCIDO' | 'EM_ANALISE' | 'ISENTO';
+  exemption?: null | { reason: string; grantedBy: string; createdAt: string };
   proof: null | {
     id: number;
     fileName: string;
@@ -81,6 +83,7 @@ export interface MemberOverview {
   posts: MemberPost[];
   secretary: { entries: MemberSecretaryEntry[] };
   finance: {
+    currentYear?: number;
     fees: MemberFee[];
     standaloneProofs: StandalonePaymentProof[];
     receivedCents: number;
@@ -243,6 +246,25 @@ export const MemberService = {
       method: 'POST',
       body: JSON.stringify({ competence, ...file }),
     });
+  },
+
+  createExemptionRequest(request: {
+    description: string;
+    period?: string;
+    file?: { fileName: string; mimeType: string; content: string };
+  }): Promise<{ id: number }> {
+    return authenticatedRequest('/secretaria/exemption-requests', {
+      method: 'POST',
+      body: JSON.stringify({
+        description: request.description,
+        ...(request.period ? { period: request.period } : {}),
+        ...request.file,
+      }),
+    });
+  },
+
+  downloadEntryAttachment(id: number, fileName: string): Promise<void> {
+    return authenticatedDownload(`/secretaria/attachments/${id}/file`, fileName);
   },
 
   downloadPostAttachment(id: number, fileName: string): Promise<void> {

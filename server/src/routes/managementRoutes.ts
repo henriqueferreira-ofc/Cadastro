@@ -17,7 +17,13 @@ import {
   statuses,
   methods,
 } from '../domain/management';
-import { lockMonthlyFee, lockFinancialAccount } from '../domain/finance';
+import { auditLog } from '../utils/logger';
+import {
+  lockMonthlyFee,
+  lockFinancialAccount,
+  DUE_DAY,
+  MONTHLY_AMOUNT_CENTS,
+} from '../domain/finance';
 
 const router = Router();
 router.use(adminAuth);
@@ -61,12 +67,21 @@ const proofSelect = {
   status: true,
   submittedAt: true,
   reviewedAt: true,
+  reviewedBy: true,
   rejectionReason: true,
 };
 const feeInclude = {
   cadastro: { select: { id: true, cpf: true, nome: true } },
   payment: true,
+  exemption: true,
   proofs: { select: proofSelect, orderBy: { submittedAt: 'desc' as const } },
+};
+const entryAttachmentSelect = {
+  id: true,
+  fileName: true,
+  mimeType: true,
+  size: true,
+  createdAt: true,
 };
 const routeId = (value: unknown) => positiveInt(Number(value));
 const postCategories = ['INSTITUCIONAL', 'TRABALHO', 'SECRETARIA', 'FINANCEIRO'] as const;
@@ -91,10 +106,11 @@ router.get('/associados', async (_req, res) => {
 
 router.get('/secretaria/solicitacoes', async (_req, res) => {
   const entries = await prisma.officeEntry.findMany({
-    where: { kind: 'SOLICITACAO', visibleToMember: true },
+    where: { kind: { in: ['SOLICITACAO', 'ISENCAO'] }, visibleToMember: true },
     include: {
       cadastro: { select: { id: true, nome: true, cpf: true } },
       messages: { orderBy: { createdAt: 'asc' } },
+      attachments: { select: entryAttachmentSelect, orderBy: { createdAt: 'asc' } },
     },
     orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
     take: 200,
@@ -111,6 +127,7 @@ router.get('/secretaria/:cadastroId', async (req, res) => {
       include: {
         events: { orderBy: { createdAt: 'desc' } },
         messages: { orderBy: { createdAt: 'asc' } },
+        attachments: { select: entryAttachmentSelect, orderBy: { createdAt: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -149,6 +166,49 @@ router.post('/secretaria', async (req, res) => {
     include: { events: true, messages: true },
   });
   res.status(201).json(entry);
+});
+
+router.get('/secretaria/anexos/:id/arquivo', async (req, res) => {
+  const attachment = await prisma.officeEntryAttachment.findUnique({
+    where: { id: routeId(req.params.id) },
+  });
+  if (!attachment) return res.status(404).json({ error: 'Anexo não encontrado.' });
+  res.setHeader('Content-Type', attachment.mimeType);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="anexo-${attachment.id}"; filename*=UTF-8''${encodeURIComponent(attachment.fileName).replace(/'/g, '%27')}`,
+  );
+  res.send(attachment.content);
+});
+
+// A Secretaria confere o pedido e o encaminha ao Financeiro, que decide a isenção.
+router.post('/secretaria/registros/:id/financeiro', async (req, res) => {
+  const id = routeId(req.params.id);
+  const entry = await prisma.officeEntry.findUnique({ where: { id } });
+  if (!entry || entry.kind !== 'ISENCAO')
+    return res.status(404).json({ error: 'Pedido de isenção não encontrado.' });
+  if (entry.status === 'CONCLUIDO') throw new ConflictError('Este pedido já foi concluído.');
+  if (entry.forwardedToFinanceAt)
+    throw new ConflictError('Este pedido já foi encaminhado ao Financeiro.');
+  await prisma.officeEntry.update({
+    where: { id },
+    data: {
+      forwardedToFinanceAt: new Date(),
+      status: 'EM_ANDAMENTO',
+      events: {
+        create: { status: 'EM_ANDAMENTO', note: 'Encaminhado ao Financeiro para análise.' },
+      },
+      messages: {
+        create: {
+          sender: 'ADMIN',
+          content: 'Seu pedido de isenção foi conferido e encaminhado ao Financeiro para decisão.',
+        },
+      },
+    },
+  });
+  auditLog('EXEMPTION_REQUEST_FORWARDED', 'Pedido de isenção encaminhado ao Financeiro');
+  res.json({ success: true });
 });
 
 router.post('/secretaria/registros/:id/visibilidade', async (req, res) => {
@@ -294,10 +354,18 @@ router.post('/mensalidades/:id/pagamento', async (req, res) => {
     await lockMonthlyFee(tx, feeId);
     const fee = await tx.monthlyFee.findUnique({
       where: { id: feeId },
-      include: { payment: true, proofs: { where: { status: 'PENDING' }, take: 1 } },
+      include: {
+        payment: true,
+        exemption: true,
+        proofs: { where: { status: 'PENDING' }, take: 1 },
+      },
     });
     if (!fee) return null;
     if (fee.payment) throw new ConflictError('Esta mensalidade já foi paga.');
+    if (fee.exemption)
+      throw new ConflictError(
+        'Esta mensalidade está isenta. Revogue a isenção para registrar pagamento.',
+      );
     if (fee.proofs.length) {
       throw new ConflictError(
         'Analise o comprovante pendente antes de registrar uma baixa manual.',
@@ -309,6 +377,150 @@ router.post('/mensalidades/:id/pagamento', async (req, res) => {
   });
   if (!payment) return res.status(404).json({ error: 'Mensalidade não encontrada.' });
   res.status(201).json(payment);
+});
+
+const monthText = (competence: string) => competence.split('-').reverse().join('/');
+const requestSelect = {
+  id: true,
+  title: true,
+  description: true,
+  status: true,
+  createdAt: true,
+  forwardedToFinanceAt: true,
+  cadastro: { select: { id: true, nome: true, cpf: true } },
+  messages: { orderBy: { createdAt: 'asc' as const } },
+  attachments: { select: entryAttachmentSelect, orderBy: { createdAt: 'asc' as const } },
+};
+
+// Pedidos de isenção que a Secretaria já encaminhou e ainda aguardam decisão.
+router.get('/isencoes/pedidos', async (_req, res) => {
+  const requests = await prisma.officeEntry.findMany({
+    where: { kind: 'ISENCAO', forwardedToFinanceAt: { not: null }, status: { not: 'CONCLUIDO' } },
+    select: requestSelect,
+    orderBy: [{ forwardedToFinanceAt: 'asc' }, { id: 'asc' }],
+  });
+  res.json(requests);
+});
+
+router.post('/isencoes/pedidos/:id/recusar', async (req, res) => {
+  const id = routeId(req.params.id);
+  const reason = textField(req.body.reason, 'Motivo da recusa', 1000);
+  const entry = await prisma.officeEntry.findUnique({ where: { id } });
+  if (!entry || entry.kind !== 'ISENCAO' || !entry.forwardedToFinanceAt)
+    return res.status(404).json({ error: 'Pedido de isenção não encontrado.' });
+  if (entry.status === 'CONCLUIDO') throw new ConflictError('Este pedido já foi concluído.');
+  await prisma.officeEntry.update({
+    where: { id },
+    data: {
+      status: 'CONCLUIDO',
+      events: { create: { status: 'CONCLUIDO', note: `Isenção não aprovada: ${reason}` } },
+      messages: {
+        create: {
+          sender: 'ADMIN',
+          content: `Pedido de isenção não aprovado pelo Financeiro: ${reason}`,
+        },
+      },
+    },
+  });
+  auditLog('EXEMPTION_REQUEST_DECLINED', 'Pedido de isenção recusado');
+  res.json({ success: true });
+});
+
+// Isenta um período (até 60 meses, inclusive um ano inteiro). Meses já pagos ou com comprovante
+// em análise são preservados e informados; os demais viram "Isento" na mesma transação.
+router.post('/isencoes', async (req, res) => {
+  const cadastroId = positiveInt(req.body.cadastroId);
+  const reason = textField(req.body.reason, 'Justificativa', 1000);
+  const requestId = req.body.requestId === undefined ? null : positiveInt(req.body.requestId);
+  const list: unknown = req.body.competences;
+  if (!Array.isArray(list) || list.length < 1 || list.length > 60)
+    throw new InputError('Informe de 1 a 60 meses para isentar.');
+  const competences = [...new Set(list.map((item) => month(item)))].sort();
+  await requireAssociate(cadastroId);
+  const result = await prisma.$transaction(
+    async (tx) => {
+      await lockFinancialAccount(tx, cadastroId);
+      const request = requestId
+        ? await tx.officeEntry.findFirst({
+            where: { id: requestId, cadastroId, kind: 'ISENCAO' },
+          })
+        : null;
+      if (requestId && (!request || request.status === 'CONCLUIDO'))
+        throw new ConflictError('Pedido de isenção não encontrado ou já concluído.');
+      const granted: string[] = [];
+      const already: string[] = [];
+      const blocked: string[] = [];
+      for (const competence of competences) {
+        const fee =
+          (await tx.monthlyFee.findUnique({
+            where: { cadastroId_competence: { cadastroId, competence } },
+          })) ??
+          (await tx.monthlyFee.create({
+            data: {
+              cadastroId,
+              competence,
+              amountCents: MONTHLY_AMOUNT_CENTS,
+              dueDate: new Date(`${competence}-${DUE_DAY}T00:00:00.000Z`),
+            },
+          }));
+        await lockMonthlyFee(tx, fee.id);
+        const [payment, exemption, pending] = await Promise.all([
+          tx.feePayment.findUnique({ where: { feeId: fee.id } }),
+          tx.feeExemption.findUnique({ where: { feeId: fee.id } }),
+          tx.paymentProof.findFirst({
+            where: { cadastroId, competence, status: 'PENDING' },
+            select: { id: true },
+          }),
+        ]);
+        if (payment || pending) {
+          blocked.push(competence);
+          continue;
+        }
+        if (exemption) {
+          already.push(competence);
+          continue;
+        }
+        await tx.feeExemption.create({ data: { feeId: fee.id, reason } });
+        await tx.paymentProof.updateMany({
+          where: { cadastroId, competence, feeId: null },
+          data: { feeId: fee.id },
+        });
+        granted.push(competence);
+      }
+      if (!granted.length && !already.length)
+        throw new ConflictError(
+          `Nenhum mês pôde ser isentado: já pagos ou com comprovante em análise (${blocked.map(monthText).join(', ')}).`,
+        );
+      if (request) {
+        const text = granted.length ? granted.map(monthText).join(', ') : 'meses já isentos';
+        await tx.officeEntry.update({
+          where: { id: request.id },
+          data: {
+            status: 'CONCLUIDO',
+            events: { create: { status: 'CONCLUIDO', note: `Isenção concedida: ${text}.` } },
+            messages: {
+              create: {
+                sender: 'ADMIN',
+                content: `Isenção aprovada pelo Financeiro para: ${text}. Justificativa registrada: ${reason}`,
+              },
+            },
+          },
+        });
+      }
+      return { granted: granted.length, skipped: already.length, blocked };
+    },
+    { maxWait: 10000, timeout: 30000 },
+  );
+  auditLog('FEE_EXEMPTION_GRANTED', `Isenção concedida (${result.granted} mês(es))`);
+  res.status(201).json(result);
+});
+
+router.post('/mensalidades/:id/isencao/revogar', async (req, res) => {
+  const feeId = routeId(req.params.id);
+  const removed = await prisma.feeExemption.deleteMany({ where: { feeId } });
+  if (!removed.count) return res.status(404).json({ error: 'Esta mensalidade não está isenta.' });
+  auditLog('FEE_EXEMPTION_REVOKED', 'Isenção revogada');
+  res.json({ success: true });
 });
 
 router.get('/comprovantes', async (req, res) => {
@@ -393,9 +605,19 @@ router.post('/comprovantes/:id/aprovar', async (req, res) => {
         );
       if (await tx.feePayment.findUnique({ where: { feeId: fee.id } }))
         throw new ConflictError('Esta mensalidade já possui pagamento registrado.');
+      if (await tx.feeExemption.findUnique({ where: { feeId: fee.id } }))
+        throw new ConflictError(
+          'Esta mensalidade está isenta. Revogue a isenção antes de aprovar o comprovante.',
+        );
       const claimed = await tx.paymentProof.updateMany({
         where: { id, status: 'PENDING' },
-        data: { status: 'APPROVED', feeId: fee.id, reviewedAt: new Date(), rejectionReason: null },
+        data: {
+          status: 'APPROVED',
+          feeId: fee.id,
+          reviewedAt: new Date(),
+          reviewedBy: 'Secretaria',
+          rejectionReason: null,
+        },
       });
       if (claimed.count !== 1) throw new ConflictError('Este comprovante já foi analisado.');
       const payment = await tx.feePayment.create({
@@ -423,7 +645,7 @@ router.post('/comprovantes/:id/recusar', async (req, res) => {
   const rejectionReason = textField(req.body.reason, 'Motivo da recusa', 1000);
   const updated = await prisma.paymentProof.updateMany({
     where: { id, status: 'PENDING' },
-    data: { status: 'REJECTED', reviewedAt: new Date(), rejectionReason },
+    data: { status: 'REJECTED', reviewedAt: new Date(), reviewedBy: 'Secretaria', rejectionReason },
   });
   if (updated.count !== 1) {
     const exists = await prisma.paymentProof.findUnique({ where: { id }, select: { id: true } });

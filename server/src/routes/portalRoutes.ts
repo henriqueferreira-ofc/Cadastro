@@ -17,7 +17,13 @@ import {
   month,
   textField,
 } from '../domain/management';
-import { lockMonthlyFee, lockFinancialAccount, MONTHLY_AMOUNT_CENTS } from '../domain/finance';
+import {
+  lockMonthlyFee,
+  lockFinancialAccount,
+  ensureYearFees,
+  saoPauloToday,
+  MONTHLY_AMOUNT_CENTS,
+} from '../domain/finance';
 import { createPixCharge } from '../utils/pix';
 
 const router = Router();
@@ -200,6 +206,8 @@ router.post('/logout', async (_req, res) => {
 router.get('/overview', async (_req, res) => {
   const auth = res.locals.memberAuth as MemberAuthContext;
   try {
+    const today = saoPauloToday();
+    await ensureYearFees(prisma, auth.cadastroId, Number(today.slice(0, 4)));
     const [cadastro, posts] = await Promise.all([
       prisma.cadastro.findUnique({
         where: { id: auth.cadastroId },
@@ -223,6 +231,7 @@ router.get('/overview', async (_req, res) => {
           monthlyFees: {
             include: {
               payment: true,
+              exemption: { select: { reason: true, grantedBy: true, createdAt: true } },
               proofs: {
                 select: {
                   id: true,
@@ -242,10 +251,14 @@ router.get('/overview', async (_req, res) => {
           officeEntries: {
             where: {
               visibleToMember: true,
-              kind: { in: ['ATENDIMENTO', 'SOLICITACAO', 'PENDENCIA'] },
+              kind: { in: ['ATENDIMENTO', 'SOLICITACAO', 'PENDENCIA', 'ISENCAO'] },
             },
             select: {
               id: true,
+              attachments: {
+                select: { id: true, fileName: true, mimeType: true, size: true, createdAt: true },
+                orderBy: { createdAt: 'asc' },
+              },
               kind: true,
               title: true,
               description: true,
@@ -292,21 +305,17 @@ router.get('/overview', async (_req, res) => {
       }),
     ]);
     if (!cadastro) return res.status(404).json({ error: 'Cadastro não encontrado.' });
-    const today = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date());
     const fees = cadastro.monthlyFees.map((fee) => {
       const proof = fee.proofs[0] || null;
       const status = fee.payment
         ? 'PAGO'
-        : proof?.status === 'PENDING'
-          ? 'EM_ANALISE'
-          : fee.dueDate.toISOString().slice(0, 10) < today
-            ? 'VENCIDO'
-            : 'ABERTO';
+        : fee.exemption
+          ? 'ISENTO'
+          : proof?.status === 'PENDING'
+            ? 'EM_ANALISE'
+            : fee.dueDate.toISOString().slice(0, 10) < today
+              ? 'VENCIDO'
+              : 'ABERTO';
       return {
         id: fee.id,
         competence: fee.competence,
@@ -314,6 +323,7 @@ router.get('/overview', async (_req, res) => {
         dueDate: fee.dueDate,
         notes: fee.notes,
         status,
+        exemption: fee.exemption,
         proof,
         payment: fee.payment
           ? {
@@ -329,11 +339,12 @@ router.get('/overview', async (_req, res) => {
       posts,
       secretary: { entries: cadastro.officeEntries },
       finance: {
+        currentYear: Number(today.slice(0, 4)),
         fees,
         standaloneProofs: cadastro.paymentProofs,
         receivedCents: fees.reduce((total, fee) => total + (fee.payment?.amountCents || 0), 0),
         openCents: fees
-          .filter((fee) => !fee.payment)
+          .filter((fee) => !fee.payment && !fee.exemption)
           .reduce((total, fee) => total + fee.amountCents, 0),
         overdueCents: fees
           .filter((fee) => fee.status === 'VENCIDO')
@@ -390,6 +401,71 @@ router.post('/secretaria/requests', async (req, res, next) => {
   }
 });
 
+// Pedido de isenção: justificativa por escrito e, opcionalmente, laudo ou outro documento.
+router.post('/secretaria/exemption-requests', async (req, res, next) => {
+  const auth = res.locals.memberAuth as MemberAuthContext;
+  try {
+    const description = textField(req.body?.description, 'Justificativa', 3000);
+    const period = textField(req.body?.period, 'Período', 200, false);
+    const hasFile = req.body?.content !== undefined;
+    const fileName = hasFile
+      ? textField(req.body?.fileName, 'Nome do arquivo', 200).replace(/[\r\n\\/\x00-\x1f]/g, '_')
+      : '';
+    const mimeType = req.body?.mimeType;
+    const content = hasFile ? decodeDocument(req.body?.content, mimeType) : null;
+    const text = period ? `Período desejado: ${period}\n\n${description}` : description;
+    const open = await prisma.officeEntry.count({
+      where: { cadastroId: auth.cadastroId, kind: 'ISENCAO', status: { not: 'CONCLUIDO' } },
+    });
+    if (open >= 3)
+      throw new ConflictError(
+        'Você já tem pedidos de isenção em andamento. Aguarde a resposta ou escreva na conversa.',
+      );
+    const entry = await prisma.officeEntry.create({
+      data: {
+        cadastroId: auth.cadastroId,
+        kind: 'ISENCAO',
+        title: 'Pedido de isenção de mensalidades',
+        description: text,
+        status: 'ABERTO',
+        visibleToMember: true,
+        events: { create: { status: 'ABERTO', note: 'Pedido de isenção enviado pelo associado.' } },
+        messages: { create: { sender: 'MEMBER', content: text } },
+        ...(content
+          ? {
+              attachments: {
+                create: { fileName, mimeType, size: content.length, content },
+              },
+            }
+          : {}),
+      },
+      select: { id: true },
+    });
+    auditLog('MEMBER_EXEMPTION_REQUEST', 'Pedido de isenção enviado pelo Portal do Associado');
+    return res.status(201).json(entry);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/secretaria/attachments/:id/file', async (req, res) => {
+  const auth = res.locals.memberAuth as MemberAuthContext;
+  const attachment = await prisma.officeEntryAttachment.findFirst({
+    where: {
+      id: Number(req.params.id) || 0,
+      entry: { cadastroId: auth.cadastroId, visibleToMember: true },
+    },
+  });
+  if (!attachment) return res.status(404).json({ error: 'Anexo não encontrado.' });
+  res.setHeader('Content-Type', attachment.mimeType);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="anexo-${attachment.id}"; filename*=UTF-8''${encodeURIComponent(attachment.fileName).replace(/'/g, '%27')}`,
+  );
+  return res.send(attachment.content);
+});
+
 router.post('/secretaria/requests/:id/messages', async (req, res, next) => {
   const auth = res.locals.memberAuth as MemberAuthContext;
   try {
@@ -400,7 +476,7 @@ router.post('/secretaria/requests/:id/messages', async (req, res, next) => {
         id,
         cadastroId: auth.cadastroId,
         visibleToMember: true,
-        kind: { in: ['ATENDIMENTO', 'SOLICITACAO', 'PENDENCIA'] },
+        kind: { in: ['ATENDIMENTO', 'SOLICITACAO', 'PENDENCIA', 'ISENCAO'] },
       },
     });
     if (!entry) return res.status(404).json({ error: 'Solicitação não encontrada.' });
@@ -444,9 +520,14 @@ router.get('/finance/fees/:id/pix', async (req, res, next) => {
     const id = positiveInt(Number(req.params.id));
     const fee = await prisma.monthlyFee.findFirst({
       where: { id, cadastroId: auth.cadastroId },
-      include: { payment: true, proofs: { where: { status: 'PENDING' }, take: 1 } },
+      include: {
+        payment: true,
+        exemption: true,
+        proofs: { where: { status: 'PENDING' }, take: 1 },
+      },
     });
     if (!fee) return res.status(404).json({ error: 'Mensalidade não encontrada.' });
+    if (fee.exemption) return res.status(409).json({ error: 'Esta mensalidade está isenta.' });
     if (fee.payment) return res.status(409).json({ error: 'Esta mensalidade já está paga.' });
     if (fee.proofs.length) {
       return res.status(409).json({ error: 'O comprovante desta mensalidade já está em análise.' });
@@ -483,10 +564,15 @@ router.post('/finance/proofs', async (req, res, next) => {
         const fee = found
           ? await tx.monthlyFee.findUnique({
               where: { id: found.id },
-              include: { payment: true, proofs: { where: { status: 'PENDING' }, take: 1 } },
+              include: {
+                payment: true,
+                exemption: true,
+                proofs: { where: { status: 'PENDING' }, take: 1 },
+              },
             })
           : null;
         if (fee?.payment) throw new ConflictError('Esta mensalidade já está paga.');
+        if (fee?.exemption) throw new ConflictError('Esta mensalidade está isenta.');
         const referenceMonth = fee?.competence || competence!;
         if (
           await tx.paymentProof.findFirst({

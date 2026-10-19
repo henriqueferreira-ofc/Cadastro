@@ -60,6 +60,7 @@ app.use(limiter);
 // Os anexos só são recebidos depois da autenticação; o limite padrão permanece nas demais rotas.
 app.use('/api/gestao', adminAuth, express.json({ limit: '8mb' }), managementRoutes);
 app.use('/api/member/finance/proofs', memberAuth, express.json({ limit: '8mb' }));
+app.use('/api/member/secretaria/exemption-requests', memberAuth, express.json({ limit: '8mb' }));
 app.use(express.json({ limit: '64kb' }));
 app.use('/api/auth/login', adminLoginLimiter);
 app.use('/api/auth/registration-access', registrationAccessLimiter);
