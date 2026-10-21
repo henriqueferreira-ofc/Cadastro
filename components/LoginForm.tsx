@@ -17,9 +17,10 @@ import { MemberService } from '../member_service';
 import { BaseAutorizada } from '../types';
 import BlockedCpfPixNotice from './BlockedCpfPixNotice';
 
-type AccessMode = 'LOGIN' | 'ACTIVATE' | 'REGISTER';
+export type AccessMode = 'LOGIN' | 'ACTIVATE' | 'REGISTER';
 
 interface LoginFormProps {
+  initialMode?: AccessMode;
   onRegistrationSuccess: (user: BaseAutorizada) => void;
   onMemberSuccess: () => void;
 }
@@ -38,8 +39,12 @@ const modes: Array<{
 const inputClass =
   'w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-base font-medium outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-100';
 
-const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSuccess }) => {
-  const [mode, setMode] = useState<AccessMode>('LOGIN');
+const LoginForm: React.FC<LoginFormProps> = ({
+  initialMode = 'LOGIN',
+  onRegistrationSuccess,
+  onMemberSuccess,
+}) => {
+  const [mode, setMode] = useState<AccessMode>(initialMode);
   const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -185,10 +190,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
 
           {mode === 'ACTIVATE' && (
             <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-              <p className="font-bold">Seu cadastro já foi enviado, mas você ainda não tem senha?</p>
+              <p className="font-bold">
+                Seu cadastro já foi enviado, mas você ainda não tem senha?
+              </p>
               <p className="mt-1 leading-relaxed">
-                Solicite à Secretaria o código de ativação do portal. Ele vale por 24 horas e por
-                um único uso. Com ele, você cria sua senha pessoal.
+                Solicite à Secretaria o código de ativação do portal. Ele vale por 24 horas e por um
+                único uso. Com ele, você cria sua senha pessoal.
               </p>
             </div>
           )}
@@ -206,7 +213,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="member-cpf" className="mb-2 block text-sm font-semibold text-gray-700">
+              <label
+                htmlFor="member-cpf"
+                className="mb-2 block text-sm font-semibold text-gray-700"
+              >
                 CPF do titular
               </label>
               <div className="relative">
@@ -228,7 +238,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
                   className={`${inputClass} pr-11 tracking-wider`}
                   required
                 />
-                <Search aria-hidden="true" className="absolute right-3 top-3.5 h-5 w-5 text-gray-400" />
+                <Search
+                  aria-hidden="true"
+                  className="absolute right-3 top-3.5 h-5 w-5 text-gray-400"
+                />
               </div>
             </div>
 
@@ -237,7 +250,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
             )}
 
             {mode === 'REGISTER' && registrationStatus === 'CODE_READY' && (
-              <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+              <div
+                role="status"
+                className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900"
+              >
                 <p className="font-bold">CPF liberado pela Secretaria</p>
                 <p className="mt-1 leading-relaxed">
                   Informe abaixo o código de liberação recebido para abrir o formulário de cadastro.
@@ -246,7 +262,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
             )}
 
             {mode === 'REGISTER' && registrationStatus === 'ALREADY_REGISTERED' && (
-              <div role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+              <div
+                role="status"
+                className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"
+              >
                 <p className="font-bold">Este CPF já possui cadastro enviado</p>
                 <p className="mt-1 leading-relaxed">
                   Use “Primeiro acesso” para criar sua senha com o código de ativação fornecido pela
@@ -256,11 +275,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
             )}
 
             {mode === 'REGISTER' && registrationStatus === 'CONTACT_SECRETARY' && (
-              <div role="alert" className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+              <div
+                role="alert"
+                className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700"
+              >
                 <p className="font-bold">Não foi possível liberar o cadastro automaticamente</p>
                 <p className="mt-1 leading-relaxed">
-                  Procure a Secretaria da AAFAB para confirmar sua situação. Nenhum dado cadastral foi
-                  exibido nesta consulta.
+                  Procure a Secretaria da AAFAB para confirmar sua situação. Nenhum dado cadastral
+                  foi exibido nesta consulta.
                 </p>
               </div>
             )}
@@ -268,8 +290,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
             {(mode === 'ACTIVATE' ||
               (mode === 'REGISTER' && registrationStatus === 'CODE_READY')) && (
               <div>
-                <label htmlFor="member-code" className="mb-2 block text-sm font-semibold text-gray-700">
-                  {mode === 'ACTIVATE' ? 'Código de ativação do portal' : 'Código de liberação do cadastro'}
+                <label
+                  htmlFor="member-code"
+                  className="mb-2 block text-sm font-semibold text-gray-700"
+                >
+                  {mode === 'ACTIVATE'
+                    ? 'Código de ativação do portal'
+                    : 'Código de liberação do cadastro'}
                 </label>
                 <input
                   id="member-code"
@@ -290,7 +317,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
 
             {isPasswordMode && (
               <div>
-                <label htmlFor="member-password" className="mb-2 block text-sm font-semibold text-gray-700">
+                <label
+                  htmlFor="member-password"
+                  className="mb-2 block text-sm font-semibold text-gray-700"
+                >
                   {mode === 'ACTIVATE' ? 'Crie sua senha' : 'Senha'}
                 </label>
                 <div className="relative">
@@ -303,7 +333,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
                       setPassword(e.target.value);
                       setError('');
                     }}
-                    placeholder={mode === 'ACTIVATE' ? 'Mínimo de 10 caracteres' : 'Sua senha pessoal'}
+                    placeholder={
+                      mode === 'ACTIVATE' ? 'Mínimo de 10 caracteres' : 'Sua senha pessoal'
+                    }
                     className={`${inputClass} pr-12`}
                     required
                   />
@@ -326,7 +358,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
 
             {mode === 'ACTIVATE' && (
               <div>
-                <label htmlFor="member-confirmation" className="mb-2 block text-sm font-semibold text-gray-700">
+                <label
+                  htmlFor="member-confirmation"
+                  className="mb-2 block text-sm font-semibold text-gray-700"
+                >
                   Confirme sua senha
                 </label>
                 <input
@@ -345,7 +380,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onRegistrationSuccess, onMemberSu
             )}
 
             {error && (
-              <div role="alert" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+              <div
+                role="alert"
+                className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4"
+              >
                 <AlertCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                 <p className="text-sm font-medium leading-relaxed text-red-700">{error}</p>
               </div>

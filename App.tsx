@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import logo from './logo.png';
 import { BaseAutorizada, ViewState } from './types';
 import { DBService } from './db_service';
-import LoginForm from './components/LoginForm';
+import LoginForm, { type AccessMode } from './components/LoginForm';
+import Home from './components/Home';
 import RegistrationForm from './components/RegistrationForm';
 import AdminPanel from './components/AdminPanel';
 import SuccessScreen from './components/SuccessScreen';
@@ -12,7 +13,8 @@ import { memberSession } from './member_session';
 import { ShieldCheck, UserCog, UserRound } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<ViewState>('AUTH');
+  const [view, setView] = useState<ViewState>('HOME');
+  const [authMode, setAuthMode] = useState<AccessMode>('LOGIN');
   const [activeUser, setActiveUser] = useState<BaseAutorizada | null>(null);
   const [showAdminAuth, setShowAdminAuth] = useState(false);
 
@@ -32,8 +34,14 @@ const App: React.FC = () => {
 
   const resetFlow = useCallback(() => {
     setActiveUser(null);
-    setView('AUTH');
+    setView('HOME');
   }, []);
+
+  const openAuth = (mode: AccessMode) => {
+    setAuthMode(mode);
+    setView('AUTH');
+    window.scrollTo({ top: 0 });
+  };
 
   const leaveMemberPortal = useCallback(() => {
     memberSession.clear();
@@ -41,6 +49,28 @@ const App: React.FC = () => {
   }, [resetFlow]);
 
   const wideView = view === 'ADMIN' || view === 'MEMBER';
+
+  if (view === 'HOME') {
+    return (
+      <>
+        <Home
+          onOpenPortal={() => openAuth('LOGIN')}
+          onRegister={() => openAuth('REGISTER')}
+          onActivate={() => openAuth('ACTIVATE')}
+          onAdmin={() => setShowAdminAuth(true)}
+        />
+        {showAdminAuth && (
+          <AdminAuthModal
+            onSuccess={() => {
+              setView('ADMIN');
+              setShowAdminAuth(false);
+            }}
+            onClose={() => setShowAdminAuth(false)}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -112,12 +142,12 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main
-        className={`flex-grow px-3 sm:px-4 ${wideView ? 'py-3 sm:py-6' : 'py-8 sm:py-12'}`}
-      >
+      <main className={`flex-grow px-3 sm:px-4 ${wideView ? 'py-3 sm:py-6' : 'py-8 sm:py-12'}`}>
         <div className={`mx-auto ${wideView ? 'max-w-6xl' : 'max-w-3xl'}`}>
           {view === 'AUTH' && (
             <LoginForm
+              key={authMode}
+              initialMode={authMode}
               onRegistrationSuccess={handleLoginSuccess}
               onMemberSuccess={() => setView('MEMBER')}
             />
