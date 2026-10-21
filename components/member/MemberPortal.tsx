@@ -35,6 +35,7 @@ import { formatCEP, formatCPF, formatPhone } from '../../utils';
 import AafabPixPayment from '../AafabPixPayment';
 import PaymentProofForm from './PaymentProofForm';
 import ExemptionRequestForm from './ExemptionRequestForm';
+import MemberHome from './MemberHome';
 
 type MemberPage = 'HOME' | 'WORK' | 'SECRETARY' | 'FINANCE' | 'PROFILE';
 
@@ -505,78 +506,7 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
         </div>
       )}
 
-      {page === 'HOME' && (
-        <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <button
-              type="button"
-              onClick={() => setPage('WORK')}
-              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm hover:border-blue-300"
-            >
-              <div>
-                <p className="text-xs font-medium text-gray-500">Comunicados publicados</p>
-                <p className="mt-1 text-2xl font-extrabold text-gray-900">{posts.length}</p>
-              </div>
-              <Bell className="h-7 w-7 text-blue-600" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setPage('SECRETARY')}
-              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm hover:border-blue-300"
-            >
-              <div>
-                <p className="text-xs font-medium text-gray-500">Solicitações em andamento</p>
-                <p className="mt-1 text-2xl font-extrabold text-gray-900">{pendingRequests}</p>
-              </div>
-              <ClipboardList className="h-7 w-7 text-blue-600" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setPage('FINANCE')}
-              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm hover:border-blue-300"
-            >
-              <div>
-                <p className="text-xs font-medium text-gray-500">Mensalidades em aberto</p>
-                <p className="mt-1 text-2xl font-extrabold text-gray-900">
-                  {overview.finance.fees.filter((fee) => !fee.payment).length}
-                </p>
-              </div>
-              <CircleDollarSign className="h-7 w-7 text-blue-600" />
-            </button>
-          </div>
-
-          <section>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Novidades da AAFAB</h2>
-                <p className="text-sm text-gray-500">Informações publicadas para os associados.</p>
-              </div>
-              {posts.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setPage('WORK')}
-                  className="flex shrink-0 items-center gap-1 text-sm font-bold text-blue-700"
-                >
-                  Ver todas <ChevronRight className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            {posts.length ? (
-              <div className="grid gap-4 lg:grid-cols-2">
-                {posts.slice(0, 4).map((post) => (
-                  <PostCard key={post.id} post={post} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={Bell}
-                title="Nenhum comunicado publicado"
-                text="Quando a AAFAB publicar notícias ou informações sobre seus trabalhos, elas aparecerão aqui."
-              />
-            )}
-          </section>
-        </div>
-      )}
+      {page === 'HOME' && <MemberHome overview={overview} onNavigate={setPage} />}
 
       {page === 'WORK' && (
         <section className="space-y-4">
