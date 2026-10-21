@@ -271,12 +271,14 @@ const Home: React.FC<HomeProps> = ({ onOpenPortal, onRegister, onActivate, onAdm
               </div>
             </div>
             <div className="home-rise text-center lg:text-left">
-              <p className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-blue-100 sm:text-xs">
-                <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"
-                  aria-hidden="true"
-                />
-                <span className="truncate">Associação Amigos da Força Aérea Brasileira</span>
+              <p className="pill-live relative inline-flex max-w-full items-center gap-2 overflow-hidden rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-blue-100 sm:text-xs">
+                <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+                  <span className="dot-ping absolute inset-0 rounded-full bg-green-400" />
+                  <span className="dot-blink relative h-2 w-2 rounded-full bg-green-400 shadow-[0_0_8px_2px_rgba(74,222,128,0.7)]" />
+                </span>
+                <span className="relative truncate">
+                  Associação Amigos da Força Aérea Brasileira
+                </span>
               </p>
               <h1 className="mt-5 text-balance text-3xl font-bold leading-[1.15] tracking-tight sm:mt-6 sm:text-5xl lg:text-6xl lg:leading-[1.1]">
                 União, representatividade e apoio ao associado.
