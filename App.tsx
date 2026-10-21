@@ -10,7 +10,7 @@ import SuccessScreen from './components/SuccessScreen';
 import AdminAuthModal from './components/AdminAuthModal';
 import MemberPortal from './components/member/MemberPortal';
 import { memberSession } from './member_session';
-import { ShieldCheck, UserCog, UserRound } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, UserRound } from 'lucide-react';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('HOME');
@@ -128,16 +128,15 @@ const App: React.FC = () => {
               <span className="hidden sm:inline">Área do associado</span>
               <span className="sm:hidden">Associado</span>
             </span>
-          ) : (
+          ) : view === 'AUTH' ? (
             <button
-              onClick={() => setShowAdminAuth(true)}
+              onClick={resetFlow}
               className="text-blue-200 hover:text-white transition-colors flex items-center gap-1 text-[10px] sm:text-xs font-medium flex-shrink-0 whitespace-nowrap"
             >
-              <UserCog className="w-4 h-4" />
-              <span className="hidden sm:inline">Painel Admin</span>
-              <span className="sm:hidden">Admin</span>
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              <span>Voltar ao início</span>
             </button>
-          )}
+          ) : null}
         </div>
       </header>
 
