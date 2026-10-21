@@ -18,7 +18,8 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "deploy": "gh-pages -d dist",
-    "publish": "git add . && git commit -m 'update' && git push"
+    "publish": "git add . && git commit -m 'update' && git push",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "lucide-react": "^0.562.0",

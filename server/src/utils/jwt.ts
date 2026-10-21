@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 
@@ -10,8 +11,23 @@ export const generateToken = (payload: { role: string }): string => {
     expiresIn: '30m',
     issuer,
     audience,
+    jwtid: crypto.randomUUID(),
   });
 };
+
+// Tokens administrativos encerrados no logout deixam de valer imediatamente (até expirarem).
+const revokedAdminTokens = new Map<string, number>();
+
+export const revokeAdminToken = (payload: jwt.JwtPayload): void => {
+  const now = Math.floor(Date.now() / 1000);
+  for (const [id, expiresAt] of revokedAdminTokens) {
+    if (expiresAt <= now) revokedAdminTokens.delete(id);
+  }
+  if (payload.jti && payload.exp) revokedAdminTokens.set(payload.jti, payload.exp);
+};
+
+export const isAdminTokenRevoked = (payload: jwt.JwtPayload): boolean =>
+  !!payload.jti && revokedAdminTokens.has(payload.jti);
 
 export interface AuthTokenPayload extends jwt.JwtPayload {
   role?: string;

@@ -21,6 +21,9 @@ const makeCpf = () => {
   return digits.join('');
 };
 
+const { generateTotpSecret, totpNow } = require('../dist/utils/totp');
+const totpSecret = generateTotpSecret();
+
 const waitForHealth = async (origin) => {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
@@ -78,6 +81,7 @@ async function main() {
         PORT: String(port),
         DATABASE_URL: testDatabaseUrl,
         CORS_ORIGINS: 'https://aafab.com.br',
+        ADMIN_TOTP_SECRET: totpSecret,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -104,12 +108,30 @@ async function main() {
     });
     assert(localBypass.response.status === 401, 'Atalho administrativo local ainda funciona.');
 
-    const login = await request(origin, '/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: adminPassword }),
-    });
-    assert(login.response.ok && login.body.token, 'Login administrativo falhou.');
+    const attempt = (body) =>
+      request(origin, '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    const withoutCode = await attempt({ password: adminPassword });
+    assert(
+      withoutCode.response.status === 401 && withoutCode.body.requiresCode === true,
+      'Login administrativo dispensou o segundo fator.',
+    );
+    assert(!withoutCode.body.token, 'Token emitido sem o segundo fator.');
+    const wrongPassword = await attempt({ password: 'senha-errada-qualquer', code: '123456' });
+    assert(
+      wrongPassword.response.status === 401 && !wrongPassword.body.requiresCode,
+      'Senha errada revelou a exigência do segundo fator.',
+    );
+    const wrongCode = await attempt({ password: adminPassword, code: '000000' });
+    assert(wrongCode.response.status === 401, 'Código incorreto foi aceito.');
+    const goodCode = totpNow(totpSecret);
+    const login = await attempt({ password: adminPassword, code: goodCode });
+    assert(login.response.ok && login.body.token, 'Login administrativo com 2FA falhou.');
+    const replayedCode = await attempt({ password: adminPassword, code: goodCode });
+    assert(replayedCode.response.status === 401, 'Código do autenticador foi reutilizado.');
     const adminHeaders = {
       Authorization: `Bearer ${login.body.token}`,
       'Content-Type': 'application/json',
@@ -252,7 +274,32 @@ async function main() {
       'Código temporário foi reutilizado.',
     );
 
-    console.log('Segurança integrada: fluxo cadastral e controles de acesso aprovados.');
+    // Cabeçalhos de segurança da API e encerramento de sessão no servidor
+    const apiHeaders = await fetch(`${origin}/api/auth/login`, { method: 'OPTIONS' });
+    assert(
+      apiHeaders.headers.get('cache-control') === 'no-store',
+      'API sem Cache-Control: no-store.',
+    );
+    const csp = apiHeaders.headers.get('content-security-policy') || '';
+    assert(
+      csp.includes("default-src 'none'") && csp.includes("frame-ancestors 'none'"),
+      'CSP da API ausente.',
+    );
+    assert(apiHeaders.headers.get('permissions-policy'), 'Permissions-Policy ausente.');
+    assert(apiHeaders.headers.get('referrer-policy') === 'no-referrer', 'Referrer-Policy ausente.');
+    const listBefore = await request(origin, '/api/cadastro/admin/list', { headers: adminHeaders });
+    assert(listBefore.response.status === 200, 'Sessão administrativa válida foi recusada.');
+    const logout = await request(origin, '/api/auth/logout', {
+      method: 'POST',
+      headers: adminHeaders,
+    });
+    assert(logout.response.ok, 'Logout administrativo falhou.');
+    const listAfter = await request(origin, '/api/cadastro/admin/list', { headers: adminHeaders });
+    assert(listAfter.response.status === 401, 'Token continuou válido após o logout.');
+
+    console.log(
+      'Segurança integrada: fluxo cadastral, segundo fator e controles de acesso aprovados.',
+    );
   } finally {
     if (server) {
       server.kill('SIGTERM');
