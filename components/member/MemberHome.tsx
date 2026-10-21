@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { MemberService, type MemberOverview, type MemberPost } from '../../member_service';
+import RichText, { stripMarkdown } from '../RichText';
 
 type Destination = 'WORK' | 'SECRETARY' | 'FINANCE' | 'PROFILE';
 type Category = MemberPost['category'];
@@ -153,11 +154,6 @@ function PostReader({ post, onClose }: { post: MemberPost; onClose: () => void }
             >
               {post.title}
             </h2>
-            {post.summary && (
-              <p className="mt-2 text-sm font-medium leading-relaxed text-slate-600 sm:text-base">
-                {post.summary}
-              </p>
-            )}
           </div>
           <button
             ref={closeRef}
@@ -170,7 +166,12 @@ function PostReader({ post, onClose }: { post: MemberPost; onClose: () => void }
           </button>
         </div>
         <div className="overflow-y-auto p-5 sm:p-6">
-          <p className="whitespace-pre-line text-[15px] leading-7 text-slate-700">{post.content}</p>
+          {post.summary && (
+            <p className="mb-4 rounded-2xl bg-slate-50 px-4 py-3 text-[15px] font-semibold leading-relaxed text-slate-700">
+              {stripMarkdown(post.summary)}
+            </p>
+          )}
+          <RichText text={post.content} className="text-[15px] text-slate-700" />
           {!!post.attachments?.length && (
             <div className="mt-6 space-y-2 border-t border-slate-100 pt-5">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
@@ -454,11 +455,11 @@ export default function MemberHome({ overview, onNavigate }: MemberHomeProps) {
                 </h3>
                 {featured.summary && (
                   <p className="mt-2 text-base font-medium leading-relaxed text-slate-600">
-                    {featured.summary}
+                    {stripMarkdown(featured.summary)}
                   </p>
                 )}
                 <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-7 text-slate-600">
-                  {featured.content}
+                  {stripMarkdown(featured.content)}
                 </p>
                 <div className="mt-5 flex flex-wrap items-center gap-3">
                   <button
@@ -582,11 +583,11 @@ export default function MemberHome({ overview, onNavigate }: MemberHomeProps) {
                             </h4>
                             {post.summary && (
                               <p className="mt-1 text-sm font-medium leading-relaxed text-slate-600">
-                                {post.summary}
+                                {stripMarkdown(post.summary)}
                               </p>
                             )}
                             <p className="mt-2 line-clamp-2 whitespace-pre-line text-sm leading-relaxed text-slate-500">
-                              {post.content}
+                              {stripMarkdown(post.content)}
                             </p>
                             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                               <button

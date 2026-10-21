@@ -36,6 +36,7 @@ import AafabPixPayment from '../AafabPixPayment';
 import PaymentProofForm from './PaymentProofForm';
 import ExemptionRequestForm from './ExemptionRequestForm';
 import MemberHome from './MemberHome';
+import RichText, { stripMarkdown } from '../RichText';
 
 type MemberPage = 'HOME' | 'WORK' | 'SECRETARY' | 'FINANCE' | 'PROFILE';
 
@@ -126,8 +127,10 @@ function PostCard({ post }: { post: MemberPost; key?: React.Key }) {
         <span className="text-xs text-gray-400">{date(post.publishedAt)}</span>
       </div>
       <h3 className="mt-3 text-lg font-bold text-gray-900">{post.title}</h3>
-      <p className="mt-1 text-sm font-medium leading-relaxed text-gray-600">{post.summary}</p>
-      <p className="mt-4 whitespace-pre-line text-sm leading-7 text-gray-700">{post.content}</p>
+      <p className="mt-1 text-sm font-medium leading-relaxed text-gray-600">
+        {stripMarkdown(post.summary)}
+      </p>
+      <RichText text={post.content} className="mt-4 text-sm text-gray-700" />
       {!!post.attachments?.length && (
         <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
           <p className="text-xs font-bold uppercase tracking-wide text-gray-400">

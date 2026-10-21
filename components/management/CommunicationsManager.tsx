@@ -6,6 +6,7 @@ import {
   managementApi,
 } from '../../management_service';
 import { Dialog, Field, Notice, inputClass, primaryClass, secondaryClass } from './Shared';
+import RichTextEditor from './RichTextEditor';
 
 type PostCategory = 'INSTITUCIONAL' | 'TRABALHO' | 'SECRETARIA' | 'FINANCEIRO';
 type PostStatus = 'RASCUNHO' | 'PUBLICADO' | 'ARQUIVADO';
@@ -240,12 +241,18 @@ export default function CommunicationsManager({ defaultExpanded = false }: { def
             <Field label="Título">
               <input name="title" required maxLength={160} defaultValue={current?.title || ''} className={inputClass} />
             </Field>
-            <Field label="Resumo">
+            <Field label="Resumo (texto simples, até 400 caracteres)">
               <textarea name="summary" required maxLength={400} rows={2} defaultValue={current?.summary || ''} className={inputClass} />
             </Field>
-            <Field label="Conteúdo">
-              <textarea name="content" required maxLength={10000} rows={7} defaultValue={current?.content || ''} className={inputClass} />
-            </Field>
+            <div className="space-y-1.5">
+              <span className="block text-xs font-semibold text-gray-600">Conteúdo</span>
+              <RichTextEditor
+                key={editing === 'NEW' ? 'novo' : editing.id}
+                name="content"
+                maxLength={10000}
+                defaultValue={current?.content || ''}
+              />
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Categoria">
                 <select name="category" defaultValue={current?.category || 'INSTITUCIONAL'} className={inputClass}>
