@@ -41,8 +41,29 @@ const registrationAccessLimiter = rateLimit({
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'same-site' },
+    // A API só responde JSON: nada de scripts, frames, formulários ou recursos externos.
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'none'"],
+        baseUri: ["'none'"],
+        formAction: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    referrerPolicy: { policy: 'no-referrer' },
   }),
 );
+app.use((_req, res, next) => {
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+  );
+  next();
+});
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use(
   cors({
     origin(origin, callback) {
@@ -90,6 +111,12 @@ app.use(
     return res.status(500).json({ error: 'Erro interno do servidor.' });
   },
 );
+
+if (config.production && !config.adminTotpSecret) {
+  console.warn(
+    JSON.stringify({ event: 'SECURITY_WARNING', detail: 'ADMIN_TOTP_SECRET não configurado.' }),
+  );
+}
 
 const server = app.listen(config.port, () => {
   const address = server.address();

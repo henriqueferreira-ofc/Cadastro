@@ -5,7 +5,7 @@ import SecretaryPage from './management/SecretaryPage';
 import FinancePage from './management/FinancePage';
 import CommunicationsPage from './management/CommunicationsPage';
 import { managementApi } from '../management_service';
-import { adminSession } from '../admin_session';
+import { adminLogout } from '../admin_session';
 
 const pages = [
   { id: 'cadastro', label: 'Cadastro', icon: ClipboardList },
@@ -26,7 +26,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [visited, setVisited] = useState<AdminPage[]>(['cadastro']);
   const [development, setDevelopment] = useState(false);
   const handleBack = () => {
-    adminSession.clear();
+    void adminLogout();
     onBack();
   };
   useEffect(() => {

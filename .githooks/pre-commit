@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Bloqueia commits que levariam segredos ou dados pessoais para o repositório (que é público).
+# Ativado por: git config core.hooksPath .githooks  (npm install já faz isso).
+set -u
+fail=0
+red() { printf '\033[31m%s\033[0m\n' "$1"; }
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+# 1) Arquivos que nunca devem ser versionados
+while IFS= read -r file; do
+  case "$file" in
+    .env.example|server/.env.example) ;;
+    .env|.env.*|*/.env|*/.env.*|*.pem|*.key|*.p12|*.pfx|*.db|*.sqlite|*.csv|*.xlsx|*.xls|*.sql.gz|*.dump|*audit.log|*authorized_cpfs*|*cpfs_temp*|*ENVIAR*)
+      red "BLOQUEADO: arquivo sensível não pode ser commitado: $file"; fail=1 ;;
+  esac
+done <<< "$staged"
+
+# 2) Conteúdo: senhas de banco, chaves e listas de CPF
+while IFS= read -r file; do
+  [ -f "$file" ] || continue
+  case "$file" in *.png|*.jpg|*.jpeg|*.gif|*.ico|*.woff*|*.pdf|package-lock.json|.githooks/pre-commit) continue ;; esac
+  added=$(git diff --cached -U0 -- "$file" | grep -E '^\+' | grep -vE '^\+\+\+')
+  if printf '%s' "$added" | grep -qE 'postgres(ql)?://[^:/@[:space:]]+:[^@[:space:]]{6,}@' &&
+     ! printf '%s' "$added" | grep -qE 'postgres(ql)?://(user|usuario|USER):(password|senha|PASSWORD)@'; then
+    red "BLOQUEADO: possível string de conexão com senha em $file"; fail=1
+  fi
+  if printf '%s' "$added" | grep -qE 'npg_[A-Za-z0-9]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(JWT_SECRET|ADMIN_PASSWORD|ADMIN_TOTP_SECRET)[=:][ "'\'']*[A-Za-z0-9+/_-]{16,}'; then
+    red "BLOQUEADO: possível segredo (senha, chave ou token) em $file"; fail=1
+  fi
+  if [ "$(printf '%s' "$added" | grep -cE '(^|[^0-9])[0-9]{3}\.?[0-9]{3}\.?[0-9]{3}-?[0-9]{2}([^0-9]|$)')" -ge 15 ]; then
+    red "BLOQUEADO: parece uma lista de CPFs (dados pessoais) em $file"; fail=1
+  fi
+done <<< "$staged"
+
+if [ "$fail" -ne 0 ]; then
+  echo
+  echo "Commit cancelado. Remova o dado sensível e use variáveis de ambiente / banco de dados."
+  exit 1
+fi

@@ -12,6 +12,8 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [code, setCode] = useState('');
+  const [requiresCode, setRequiresCode] = useState(false);
 
   const backendUrl = getBackendUrl();
   const isLocalhost =
@@ -47,7 +49,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password }),
+            body: JSON.stringify({ password, ...(requiresCode ? { code: code.trim() } : {}) }),
           },
           12_000,
         );
@@ -66,6 +68,13 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
         const shouldRetry = !response.ok && response.status >= 500 && response.status <= 599;
         if (shouldRetry && attempt < maxAttempts - 1) continue;
 
+        if (data?.requiresCode) {
+          setRequiresCode(true);
+          setCode('');
+          setError(data.error || 'Informe o código do aplicativo autenticador.');
+          return;
+        }
+
         setError(data?.error || 'Credenciais inválidas.');
         return;
       } catch (err) {
@@ -80,9 +89,7 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
           return;
         }
 
-        setError(
-          'Servidor local indisponível. No terminal do projeto, execute npm run dev.',
-        );
+        setError('Servidor local indisponível. No terminal do projeto, execute npm run dev.');
         return;
       }
     }
@@ -141,6 +148,26 @@ const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ onSuccess, onClose }) =
                   autoFocus
                 />
               </div>
+
+              {requiresCode && (
+                <div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={7}
+                    value={code}
+                    onChange={(e) => {
+                      setCode(e.target.value.replace(/[^\d\s]/g, ''));
+                      setError('');
+                    }}
+                    placeholder="Código do autenticador (6 dígitos)"
+                    aria-label="Código do aplicativo autenticador"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-center font-medium tracking-widest focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all placeholder:text-gray-400 placeholder:tracking-normal"
+                    autoFocus
+                  />
+                </div>
+              )}
 
               {error && (
                 <div className="text-red-500 text-xs text-center font-bold bg-red-50 py-2 rounded-lg border border-red-100 animate-in shake">

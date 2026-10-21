@@ -2,7 +2,9 @@ import { Router, Request, Response } from 'express';
 import crypto from 'node:crypto';
 import prisma from '../db';
 import { config } from '../config';
-import { generateRegistrationToken, generateToken } from '../utils/jwt';
+import { generateRegistrationToken, generateToken, revokeAdminToken } from '../utils/jwt';
+import { adminAuth } from '../middleware/adminAuth';
+import { verifyTotp } from '../utils/totp';
 import { auditLog } from '../utils/logger';
 import { normalizeCpf } from '../utils/normalizeCpf';
 import { validateCPF } from '../utils/cpfValidator';
@@ -14,9 +16,25 @@ router.use((_req, res, next) => {
   next();
 });
 
+// Tentativas recentes de login administrativo, de qualquer origem, para retardar ataques em massa.
+const recentAdminFailures: number[] = [];
+const failureWindowMs = 15 * 60 * 1000;
+
+async function adminFailureDelay() {
+  const now = Date.now();
+  while (recentAdminFailures.length && now - recentAdminFailures[0] > failureWindowMs) {
+    recentAdminFailures.shift();
+  }
+  recentAdminFailures.push(now);
+  const excess = recentAdminFailures.length - 5;
+  if (excess > 0) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(500 * 2 ** excess, 15000)));
+  }
+}
+
 // Admin login endpoint
-router.post('/login', (req: Request, res: Response) => {
-  const { password } = req.body;
+router.post('/login', async (req: Request, res: Response) => {
+  const { password, code } = req.body ?? {};
 
   if (typeof password !== 'string' || password.length > 200) {
     return res.status(401).json({ error: 'Credenciais inválidas.' });
@@ -24,19 +42,38 @@ router.post('/login', (req: Request, res: Response) => {
 
   const provided = crypto.createHash('sha256').update(password).digest();
   const expected = crypto.createHash('sha256').update(config.adminPassword).digest();
-  if (crypto.timingSafeEqual(provided, expected)) {
-    const token = generateToken({ role: 'admin' });
-    auditLog('ADMIN_LOGIN', 'Login administrativo bem-sucedido');
-
-    return res.json({
-      success: true,
-      token,
-      expiresIn: '30m',
-    });
+  if (!crypto.timingSafeEqual(provided, expected)) {
+    await adminFailureDelay();
+    auditLog('ADMIN_LOGIN_FAILED', 'Tentativa administrativa recusada');
+    return res.status(401).json({ error: 'Credenciais inválidas.' });
   }
 
-  auditLog('ADMIN_LOGIN_FAILED', 'Tentativa administrativa recusada');
-  return res.status(401).json({ error: 'Credenciais inválidas.' });
+  if (config.adminTotpSecret) {
+    if (typeof code !== 'string' || !code.trim()) {
+      return res.status(401).json({
+        error: 'Informe o código de 6 dígitos do aplicativo autenticador.',
+        requiresCode: true,
+      });
+    }
+    if (!verifyTotp(config.adminTotpSecret, code.replace(/\s+/g, ''))) {
+      await adminFailureDelay();
+      auditLog('ADMIN_LOGIN_FAILED', 'Código do autenticador recusado');
+      return res.status(401).json({
+        error: 'Código inválido ou expirado. Confira o aplicativo e tente de novo.',
+        requiresCode: true,
+      });
+    }
+  }
+
+  const token = generateToken({ role: 'admin' });
+  auditLog('ADMIN_LOGIN', 'Login administrativo bem-sucedido');
+  return res.json({ success: true, token, expiresIn: '30m' });
+});
+
+router.post('/logout', adminAuth, (_req: Request, res: Response) => {
+  revokeAdminToken(res.locals.adminToken);
+  auditLog('ADMIN_LOGOUT', 'Sessão administrativa encerrada');
+  return res.json({ success: true });
 });
 
 const genericAccessMessage =

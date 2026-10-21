@@ -30,3 +30,13 @@ server/.env.*
 *.njsproj
 *.sln
 *.sw?
+
+# Dados pessoais e segredos nunca vão para o repositório (ele é público)
+*.csv
+*.xlsx
+*.xls
+*.pem
+*.key
+authorized_cpfs*
+cpfs_temp*
+ENVIAR*
