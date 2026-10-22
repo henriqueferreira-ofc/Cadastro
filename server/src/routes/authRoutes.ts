@@ -100,7 +100,7 @@ router.post('/registration-guidance', async (req: Request, res: Response) => {
     ]);
     if (!member) {
       auditLog('REGISTRATION_GUIDANCE_DENIED', 'CPF não confirmado no fluxo público');
-      return res.json({ status: 'CONTACT_SECRETARY' });
+      return res.json({ status: cadastro ? 'CONTACT_SECRETARY' : 'NOT_FOUND' });
     }
     if (cadastro) {
       return res.json({

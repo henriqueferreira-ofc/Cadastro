@@ -19,7 +19,8 @@ export type RegistrationGuidanceStatus =
   | 'PAYMENT_REQUIRED'
   | 'CODE_READY'
   | 'ALREADY_REGISTERED'
-  | 'CONTACT_SECRETARY';
+  | 'CONTACT_SECRETARY'
+  | 'NOT_FOUND';
 
 export const DBService = {
   registrationGuidance: async (cpf: string): Promise<RegistrationGuidanceStatus> => {
@@ -42,6 +43,7 @@ export const DBService = {
         'CODE_READY',
         'ALREADY_REGISTERED',
         'CONTACT_SECRETARY',
+        'NOT_FOUND',
       ];
       return statuses.includes(result.status) ? result.status : 'CONTACT_SECRETARY';
     } catch {

@@ -7,7 +7,8 @@ import { normalizeCpf } from '../utils/normalizeCpf';
 import { validateCPF } from '../utils/cpfValidator';
 import { generateMemberToken } from '../utils/jwt';
 import { hashPassword, validatePassword, verifyPassword } from '../utils/password';
-import { hashPortalActivationCode, sameHash } from '../utils/registrationCode';
+import { generateAccessCode, hashPortalActivationCode, sameHash } from '../utils/registrationCode';
+import { activationEmail, maskEmail, sendMail } from '../utils/mailer';
 import { auditLog } from '../utils/logger';
 import {
   ConflictError,
@@ -122,6 +123,93 @@ router.post('/login', async (req, res) => {
   }
 });
 
+const ACTIVATION_EMAIL_MINUTES = 15;
+const emailSendLog = new Map<string, number[]>();
+const wrongCodeAttempts = new Map<string, number>();
+
+// Associado com cadastro enviado e sem senha recebe o código no e-mail cadastrado.
+// Responde sempre 200 com um "status" que orienta a tela; nenhum dado pessoal é devolvido,
+// exceto o e-mail mascarado do próprio titular quando o código é enviado.
+router.post('/activation-email', async (req, res) => {
+  const cpf = normalizeCpf(req.body?.cpf);
+  if (!validateCPF(cpf)) return res.status(400).json({ error: 'Informe um CPF válido.' });
+  try {
+    const [cadastro, member] = await Promise.all([
+      prisma.cadastro.findUnique({ where: { cpf }, include: { account: true } }),
+      prisma.member.findUnique({ where: { cpf }, select: { status: true } }),
+    ]);
+    if (!cadastro) return res.json({ status: member ? 'NEEDS_REGISTRATION' : 'NOT_FOUND' });
+    if (member?.status !== 'ACTIVE') return res.json({ status: 'CONTACT_SECRETARY' });
+    if (cadastro.account?.passwordHash) return res.json({ status: 'HAS_PASSWORD' });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cadastro.email)) {
+      return res.json({ status: 'CONTACT_SECRETARY' });
+    }
+
+    const now = Date.now();
+    if (emailSendLog.size > 5000) emailSendLog.clear();
+    const sent = (emailSendLog.get(cpf) ?? []).filter((time) => now - time < 60 * 60 * 1000);
+    const last = sent[sent.length - 1];
+    if (last && now - last < 60 * 1000) {
+      return res.json({
+        status: 'WAIT',
+        retryInSeconds: Math.ceil((60 * 1000 - (now - last)) / 1000),
+      });
+    }
+    if (sent.length >= 3) {
+      return res.json({
+        status: 'WAIT',
+        retryInSeconds: Math.ceil((60 * 60 * 1000 - (now - sent[0])) / 1000),
+      });
+    }
+
+    const code = generateAccessCode();
+    const expiresAt = new Date(now + ACTIVATION_EMAIL_MINUTES * 60 * 1000);
+    const hash = hashPortalActivationCode(cpf, code);
+    await prisma.memberAccount.upsert({
+      where: { cadastroId: cadastro.id },
+      create: {
+        cadastroId: cadastro.id,
+        activationCodeHash: hash,
+        activationCodeExpiresAt: expiresAt,
+      },
+      update: {
+        activationCodeHash: hash,
+        activationCodeExpiresAt: expiresAt,
+        activationCodeUsedAt: null,
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
+    });
+    const delivered = await sendMail({
+      ...activationEmail(cadastro.nome, code, ACTIVATION_EMAIL_MINUTES),
+      to: cadastro.email,
+      toName: cadastro.nome,
+    });
+    if (!delivered) {
+      await prisma.memberAccount.updateMany({
+        where: { cadastroId: cadastro.id, activationCodeHash: hash },
+        data: { activationCodeHash: null, activationCodeExpiresAt: null },
+      });
+      auditLog('MEMBER_ACTIVATION_EMAIL_FAILED', 'Falha ao enviar o código de ativação por e-mail');
+      return res.status(503).json({
+        status: 'EMAIL_FAILED',
+        error: 'Não foi possível enviar o e-mail agora. Tente mais tarde ou procure a Secretaria.',
+      });
+    }
+    sent.push(now);
+    emailSendLog.set(cpf, sent);
+    wrongCodeAttempts.delete(cpf);
+    auditLog('MEMBER_ACTIVATION_EMAIL', 'Código de ativação enviado por e-mail');
+    return res.json({
+      status: 'EMAIL_SENT',
+      maskedEmail: maskEmail(cadastro.email),
+      expiresInMinutes: ACTIVATION_EMAIL_MINUTES,
+    });
+  } catch {
+    return res.status(500).json({ error: 'Não foi possível enviar o código neste momento.' });
+  }
+});
+
 router.post('/activate', async (req, res) => {
   const cpf = normalizeCpf(req.body?.cpf);
   const code = String(req.body?.code || '').replace(/\D/g, '');
@@ -146,6 +234,23 @@ router.post('/activate', async (req, res) => {
       account.activationCodeExpiresAt.getTime() > Date.now() &&
       sameHash(account.activationCodeHash, suppliedHash);
     if (!cadastro || !account || !codeIsValid) {
+      // Cinco códigos errados seguidos invalidam o código em vigor; o titular pede outro por e-mail.
+      if (cadastro && account?.activationCodeHash && !account.activationCodeUsedAt) {
+        if (wrongCodeAttempts.size > 5000) wrongCodeAttempts.clear();
+        const attempts = (wrongCodeAttempts.get(cpf) ?? 0) + 1;
+        wrongCodeAttempts.set(cpf, attempts);
+        if (attempts >= 5) {
+          await prisma.memberAccount.updateMany({
+            where: { id: account.id },
+            data: { activationCodeHash: null, activationCodeExpiresAt: null },
+          });
+          wrongCodeAttempts.delete(cpf);
+          auditLog(
+            'MEMBER_ACTIVATION_CODE_REVOKED',
+            'Código de ativação invalidado por tentativas',
+          );
+        }
+      }
       auditLog('MEMBER_ACTIVATION_DENIED', 'Ativação do portal recusada');
       return res.status(400).json({ error: genericActivationError });
     }

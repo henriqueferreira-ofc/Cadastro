@@ -38,6 +38,14 @@ const registrationAccessLimiter = rateLimit({
   message: { error: 'Muitas tentativas. Aguarde 15 minutos.' },
 });
 
+const activationEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Muitas solicitações de código. Aguarde 15 minutos.' },
+});
+
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'same-site' },
@@ -88,6 +96,7 @@ app.use('/api/auth/registration-access', registrationAccessLimiter);
 app.use('/api/auth/registration-guidance', registrationAccessLimiter);
 app.use('/api/member/login', adminLoginLimiter);
 app.use('/api/member/activate', registrationAccessLimiter);
+app.use('/api/member/activation-email', activationEmailLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);

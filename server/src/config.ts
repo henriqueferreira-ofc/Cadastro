@@ -22,6 +22,14 @@ export const config = {
   databaseUrl: required('DATABASE_URL'),
   adminPassword: required('ADMIN_PASSWORD', 16),
   jwtSecret: required('JWT_SECRET', 32),
+  // E-mail transacional (Brevo). Sem chave configurada, o envio do código por e-mail fica indisponível.
+  brevoApiKey: (process.env.BREVO_API_KEY || '').trim(),
+  mailFromEmail: (process.env.MAIL_FROM_EMAIL || '').trim(),
+  mailFromName: (process.env.MAIL_FROM_NAME || 'AAFAB').trim(),
+  // Respostas ao e-mail do código vão para este endereço (ex.: o Gmail da Secretaria).
+  mailReplyTo: (process.env.MAIL_REPLY_TO || '').trim(),
+  mailDriver: (process.env.MAIL_DRIVER || '').trim(),
+  mailFile: (process.env.MAIL_FILE || '').trim(),
   // Opcional, mas recomendado: exige o código do aplicativo autenticador no login do admin.
   adminTotpSecret: (process.env.ADMIN_TOTP_SECRET || '').replace(/\s+/g, '').toUpperCase(),
   corsOrigins: (process.env.CORS_ORIGINS || defaultOrigins.join(','))

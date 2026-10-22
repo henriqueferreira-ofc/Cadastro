@@ -160,7 +160,7 @@ async function main() {
       body: JSON.stringify({ cpf: makeCpf() }),
     });
     assert(
-      unknownGuidance.response.ok && unknownGuidance.body.status === 'CONTACT_SECRETARY',
+      unknownGuidance.response.ok && unknownGuidance.body.status === 'NOT_FOUND',
       'CPF fora da relação recebeu dados de pagamento.',
     );
 

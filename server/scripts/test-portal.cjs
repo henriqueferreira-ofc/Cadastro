@@ -26,6 +26,19 @@ let adminToken;
 let memberToken;
 let passed = 0;
 let requestId;
+const mailFile = path.join(
+  require('node:os').tmpdir(),
+  `aafab-mail-${crypto.randomBytes(6).toString('hex')}.jsonl`,
+);
+const sentMail = () =>
+  fs.existsSync(mailFile)
+    ? fs
+        .readFileSync(mailFile, 'utf8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line))
+    : [];
 
 async function call(route, body, token) {
   return fetch(base + route, {
@@ -149,6 +162,8 @@ const cadastroData = (cpf, suffix) => ({
       JWT_SECRET: crypto.randomBytes(40).toString('hex'),
       NODE_ENV: 'production',
       APP_ENV: 'test',
+      MAIL_DRIVER: 'file',
+      MAIL_FILE: mailFile,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -930,6 +945,74 @@ const cadastroData = (cpf, suffix) => ({
       const declined = final.secretary.entries.find((item) => item.id === second.id);
       assert.equal(declined.status, 'CONCLUIDO');
       assert(declined.messages.some((m) => m.content.includes('Sem documento comprobatório.')));
+    },
+  );
+
+  await check(
+    'primeiro acesso: código por e-mail só para quem tem cadastro, com limites e mensagens claras',
+    async () => {
+      const ask = (cpf) => call('/member/activation-email', { cpf });
+      const outsider = await (await ask('39053344705')).json();
+      assert.equal(outsider.status, 'NOT_FOUND');
+      assert.equal((await ask('123')).status, 400);
+      await db.member.create({ data: { cpf: '16899535009', status: 'BLOCKED' } });
+      assert.equal((await (await ask('16899535009')).json()).status, 'NEEDS_REGISTRATION');
+      assert.equal((await (await ask(first.cpf)).json()).status, 'HAS_PASSWORD');
+
+      const sent = await (await ask(second.cpf)).json();
+      assert.equal(sent.status, 'EMAIL_SENT');
+      assert.equal(sent.expiresInMinutes, 15);
+      assert.match(sent.maskedEmail, /^d•+@example\.invalid$/);
+      const mails = sentMail();
+      assert.equal(mails.length, 1);
+      assert.equal(mails[0].to, 'dois@example.invalid');
+      const code = (mails[0].text.match(/(\d{4}) (\d{4})/) || []).slice(1).join('');
+      assert.match(code, /^\d{8}$/);
+      assert(!JSON.stringify(sent).includes(code), 'resposta não pode conter o código');
+      const wait = await (await ask(second.cpf)).json();
+      assert.equal(wait.status, 'WAIT');
+      assert(wait.retryInSeconds > 0 && wait.retryInSeconds <= 60);
+      assert.equal(sentMail().length, 1, 'não reenviar durante o intervalo');
+
+      // validade de 15 minutos e uso único; nada de código solto no banco
+      const account = await db.memberAccount.findUnique({ where: { cadastroId: second.id } });
+      const minutes = (account.activationCodeExpiresAt.getTime() - Date.now()) / 60000;
+      assert(minutes > 14 && minutes <= 15);
+      assert.notEqual(account.activationCodeHash, code);
+      const activate = await call('/member/activate', {
+        cpf: second.cpf,
+        code,
+        password: 'SenhaNova12345',
+      });
+      assert.equal(activate.status, 200);
+      assert.equal(
+        (await call('/member/activate', { cpf: second.cpf, code, password: 'OutraSenha12345' }))
+          .status,
+        400,
+      );
+      assert.equal((await (await ask(second.cpf)).json()).status, 'HAS_PASSWORD');
+
+      // cinco códigos errados invalidam o código em vigor
+      const third = await db.cadastro.create({ data: cadastroData('12345678909', 'TRES') });
+      await db.member.create({ data: { cpf: third.cpf, status: 'ACTIVE' } });
+      assert.equal((await (await ask(third.cpf)).json()).status, 'EMAIL_SENT');
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        assert.equal(
+          (
+            await call('/member/activate', {
+              cpf: third.cpf,
+              code: '00000000',
+              password: 'SenhaNova12345',
+            })
+          ).status,
+          400,
+        );
+      }
+      const revoked = await db.memberAccount.findUnique({ where: { cadastroId: third.id } });
+      assert.equal(revoked.activationCodeHash, null);
+      // CPF liberado, com cadastro, mas bloqueado: orienta a procurar a Secretaria
+      await db.member.update({ where: { cpf: third.cpf }, data: { status: 'BLOCKED' } });
+      assert.equal((await (await ask(third.cpf)).json()).status, 'CONTACT_SECRETARY');
     },
   );
 

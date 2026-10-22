@@ -7,13 +7,14 @@ import {
   EyeOff,
   Info,
   KeyRound,
+  Mail,
   LogIn,
   Search,
   ShieldCheck,
 } from 'lucide-react';
 import { formatCPF, validateCPF } from '../utils';
 import { DBService, type RegistrationGuidanceStatus } from '../db_service';
-import { MemberService } from '../member_service';
+import { MemberService, type ActivationEmailResult } from '../member_service';
 import { BaseAutorizada } from '../types';
 import BlockedCpfPixNotice from './BlockedCpfPixNotice';
 
@@ -55,6 +56,10 @@ const LoginForm: React.FC<LoginFormProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Primeiro acesso: 1) CPF e envio do código por e-mail; 2) código e criação da senha.
+  const [activationStep, setActivationStep] = useState<'CPF' | 'CODE'>('CPF');
+  const [activationNotice, setActivationNotice] = useState<ActivationEmailResult | null>(null);
+  const [sentTo, setSentTo] = useState('');
 
   const changeMode = (next: AccessMode) => {
     setMode(next);
@@ -63,6 +68,9 @@ const LoginForm: React.FC<LoginFormProps> = ({
     setConfirmation('');
     setAccessCode('');
     setRegistrationStatus('UNVERIFIED');
+    setActivationStep('CPF');
+    setActivationNotice(null);
+    setSentTo('');
   };
 
   const validateCommonCpf = () => {
@@ -86,9 +94,21 @@ const LoginForm: React.FC<LoginFormProps> = ({
         return;
       }
 
+      if (mode === 'ACTIVATE' && activationStep === 'CPF') {
+        const result = await MemberService.requestActivationEmail(cleanCpf);
+        if (result.status === 'EMAIL_SENT') {
+          setSentTo(result.maskedEmail);
+          setActivationNotice(null);
+          setActivationStep('CODE');
+        } else {
+          setActivationNotice(result);
+        }
+        return;
+      }
+
       if (mode === 'ACTIVATE') {
         if (!/^\d{8}$/.test(accessCode)) {
-          throw new Error('Informe o código temporário de 8 dígitos fornecido pela AAFAB.');
+          throw new Error('Informe o código de 8 dígitos que chegou no seu e-mail.');
         }
         if (password.length < 10 || !/[A-Za-zÀ-ÿ]/.test(password) || !/\d/.test(password)) {
           throw new Error('Crie uma senha com pelo menos 10 caracteres, uma letra e um número.');
@@ -129,7 +149,9 @@ const LoginForm: React.FC<LoginFormProps> = ({
     mode === 'LOGIN'
       ? 'Entrar no Portal do Associado'
       : mode === 'ACTIVATE'
-        ? 'Criar senha e entrar'
+        ? activationStep === 'CPF'
+          ? 'Enviar código para o meu e-mail'
+          : 'Criar senha e entrar'
         : registrationStatus === 'CODE_READY'
           ? 'Validar código e abrir cadastro'
           : registrationStatus === 'ALREADY_REGISTERED'
@@ -194,8 +216,8 @@ const LoginForm: React.FC<LoginFormProps> = ({
                 Seu cadastro já foi enviado, mas você ainda não tem senha?
               </p>
               <p className="mt-1 leading-relaxed">
-                Solicite à Secretaria o código de ativação do portal. Ele vale por 24 horas e por um
-                único uso. Com ele, você cria sua senha pessoal.
+                Informe o seu CPF e enviaremos um código de 8 dígitos para o e-mail que você
+                cadastrou. Com ele, você cria sua senha pessoal.
               </p>
             </div>
           )}
@@ -233,6 +255,12 @@ const LoginForm: React.FC<LoginFormProps> = ({
                       setRegistrationStatus('UNVERIFIED');
                       setAccessCode('');
                     }
+                    if (mode === 'ACTIVATE') {
+                      setActivationStep('CPF');
+                      setActivationNotice(null);
+                      setSentTo('');
+                      setAccessCode('');
+                    }
                   }}
                   placeholder="000.000.000-00"
                   className={`${inputClass} pr-11 tracking-wider`}
@@ -244,6 +272,125 @@ const LoginForm: React.FC<LoginFormProps> = ({
                 />
               </div>
             </div>
+
+            {mode === 'ACTIVATE' && activationStep === 'CODE' && (
+              <div
+                role="status"
+                className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900"
+              >
+                <p className="flex items-center gap-2 font-bold">
+                  <Mail aria-hidden="true" className="h-4 w-4" /> Código enviado
+                </p>
+                <p className="mt-1 leading-relaxed">
+                  {sentTo
+                    ? `Enviamos um código de 8 dígitos para ${sentTo}. Ele vale por 15 minutos e só pode ser usado uma vez.`
+                    : 'Informe o código de 8 dígitos que você recebeu.'}{' '}
+                  Confira também a caixa de spam.
+                </p>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => {
+                    setActivationStep('CPF');
+                    setAccessCode('');
+                  }}
+                  className="mt-2 min-h-9 text-xs font-bold text-green-800 underline"
+                >
+                  Não chegou? Pedir um novo código
+                </button>
+              </div>
+            )}
+
+            {mode === 'ACTIVATE' && activationStep === 'CPF' && activationNotice && (
+              <div
+                role="alert"
+                className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800"
+              >
+                {activationNotice.status === 'NOT_FOUND' && (
+                  <>
+                    <p className="font-bold">Este CPF não faz parte da AAFAB</p>
+                    <p className="mt-1 leading-relaxed">
+                      Não encontramos este CPF na relação da Associação. Se você acredita que é um
+                      engano, procure a Secretaria da AAFAB.
+                    </p>
+                  </>
+                )}
+                {activationNotice.status === 'NEEDS_REGISTRATION' && (
+                  <>
+                    <p className="font-bold">Seu CPF consta na relação, mas falta o cadastro</p>
+                    <p className="mt-1 leading-relaxed">
+                      Para entrar no portal, primeiro é preciso fazer o cadastro e a liberação.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => changeMode('REGISTER')}
+                      className="mt-3 min-h-10 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white"
+                    >
+                      Fazer o cadastro
+                    </button>
+                  </>
+                )}
+                {activationNotice.status === 'HAS_PASSWORD' && (
+                  <>
+                    <p className="font-bold">Você já criou a sua senha</p>
+                    <p className="mt-1 leading-relaxed">
+                      Use “Entrar no portal” com o CPF e a senha. Se esqueceu, procure a Secretaria.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => changeMode('LOGIN')}
+                      className="mt-3 min-h-10 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white"
+                    >
+                      Entrar no portal
+                    </button>
+                  </>
+                )}
+                {activationNotice.status === 'CONTACT_SECRETARY' && (
+                  <>
+                    <p className="font-bold">Não foi possível enviar o código</p>
+                    <p className="mt-1 leading-relaxed">
+                      Procure a Secretaria da AAFAB para confirmar a sua situação e o e-mail do seu
+                      cadastro.
+                    </p>
+                  </>
+                )}
+                {activationNotice.status === 'WAIT' && (
+                  <>
+                    <p className="font-bold">Aguarde para pedir outro código</p>
+                    <p className="mt-1 leading-relaxed">
+                      Um código foi enviado há pouco. Tente de novo em{' '}
+                      {activationNotice.retryInSeconds < 90
+                        ? `${activationNotice.retryInSeconds} segundos`
+                        : `${Math.ceil(activationNotice.retryInSeconds / 60)} minutos`}
+                      . Confira também a caixa de spam.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivationNotice(null);
+                        setActivationStep('CODE');
+                      }}
+                      className="mt-3 min-h-10 text-xs font-bold text-blue-700 underline"
+                    >
+                      Já recebi o código
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {mode === 'REGISTER' && registrationStatus === 'NOT_FOUND' && (
+              <div
+                role="alert"
+                className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800"
+              >
+                <p className="font-bold">Este CPF não faz parte da AAFAB</p>
+                <p className="mt-1 leading-relaxed">
+                  Não encontramos este CPF na relação da Associação. Se você acredita que é um
+                  engano, procure a Secretaria da AAFAB.
+                </p>
+              </div>
+            )}
 
             {mode === 'REGISTER' && registrationStatus === 'PAYMENT_REQUIRED' && (
               <BlockedCpfPixNotice />
@@ -287,7 +434,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             )}
 
-            {(mode === 'ACTIVATE' ||
+            {((mode === 'ACTIVATE' && activationStep === 'CODE') ||
               (mode === 'REGISTER' && registrationStatus === 'CODE_READY')) && (
               <div>
                 <label
@@ -315,7 +462,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             )}
 
-            {isPasswordMode && (
+            {(mode === 'LOGIN' || (mode === 'ACTIVATE' && activationStep === 'CODE')) && (
               <div>
                 <label
                   htmlFor="member-password"
@@ -356,7 +503,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             )}
 
-            {mode === 'ACTIVATE' && (
+            {mode === 'ACTIVATE' && activationStep === 'CODE' && (
               <div>
                 <label
                   htmlFor="member-confirmation"
@@ -387,6 +534,23 @@ const LoginForm: React.FC<LoginFormProps> = ({
                 <AlertCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                 <p className="text-sm font-medium leading-relaxed text-red-700">{error}</p>
               </div>
+            )}
+
+            {mode === 'ACTIVATE' && activationStep === 'CPF' && (
+              <p className="text-center text-xs text-gray-500">
+                Recebeu um código da Secretaria?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivationNotice(null);
+                    setSentTo('');
+                    setActivationStep('CODE');
+                  }}
+                  className="font-bold text-blue-700 underline"
+                >
+                  Usar esse código
+                </button>
+              </p>
             )}
 
             <button

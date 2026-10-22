@@ -185,7 +185,16 @@ export function memberFileBase64(file: File): Promise<string> {
   });
 }
 
+export type ActivationEmailResult =
+  | { status: 'EMAIL_SENT'; maskedEmail: string; expiresInMinutes: number }
+  | { status: 'WAIT'; retryInSeconds: number }
+  | { status: 'NOT_FOUND' | 'NEEDS_REGISTRATION' | 'HAS_PASSWORD' | 'CONTACT_SECRETARY' };
+
 export const MemberService = {
+  requestActivationEmail(cpf: string): Promise<ActivationEmailResult> {
+    return publicRequest<ActivationEmailResult>('/activation-email', { cpf });
+  },
+
   async login(cpf: string, password: string): Promise<MemberAuthentication> {
     const result = await publicRequest<MemberAuthentication>('/login', { cpf, password });
     memberSession.set(result.token);
