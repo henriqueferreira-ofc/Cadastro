@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Clock,
   Bell,
   CalendarDays,
   CheckCircle2,
@@ -464,6 +465,16 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-blue-100">
               Aqui você acompanha informações da AAFAB, seus atendimentos, mensalidades e dados
               pessoais.
+            </p>
+            <p className="mt-4 inline-flex items-start gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs leading-relaxed text-blue-50 sm:text-sm">
+              <Clock aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+              <span>
+                <strong className="font-bold text-white">
+                  Horário de funcionamento da Secretaria:
+                </strong>
+                <br />
+                Das 09:00 às 12:00 e das 14:00 às 18:00
+              </span>
             </p>
           </div>
           <button

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
+  Clock,
   FileText,
   HeartHandshake,
   Lock,
@@ -480,7 +481,17 @@ const Home: React.FC<HomeProps> = ({ onOpenPortal, onRegister, onActivate, onAdm
                 do primeiro acesso, o atendimento também pode ser feito dentro do portal.
               </p>
             </Reveal>
-            <Reveal delay={150} className="md:justify-self-end">
+            <Reveal delay={150} className="space-y-3 md:justify-self-end">
+              <div className="rounded-2xl border border-white/15 bg-white/5 px-5 py-4 text-left">
+                <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Clock className="h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
+                  Horário de funcionamento da Secretaria
+                </p>
+                <ul className="mt-2 space-y-0.5 pl-6 text-sm text-blue-100">
+                  <li>Das 09:00 às 12:00</li>
+                  <li>Das 14:00 às 18:00</li>
+                </ul>
+              </div>
               <a
                 href={`mailto:${CONTACT_EMAIL}`}
                 className="group inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-white/25 bg-white/10 px-6 py-2 text-sm font-semibold text-white transition hover:bg-white/20 sm:w-auto sm:text-base focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
