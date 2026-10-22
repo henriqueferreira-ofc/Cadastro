@@ -255,12 +255,14 @@ const Home: React.FC<HomeProps> = ({ onOpenPortal, onRegister, onActivate, onAdm
                   className="logo-orbit absolute -inset-5 rounded-full border border-dashed border-white/25 sm:-inset-6"
                 >
                   <span className="absolute left-1/2 top-0 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_14px_3px_rgba(252,211,77,0.55)]" />
+                  <span className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-sky-400 shadow-[0_0_14px_3px_rgba(56,189,248,0.6)]" />
                 </div>
                 <div
                   aria-hidden="true"
                   className="logo-orbit-reverse absolute -inset-9 rounded-full border border-white/10 sm:-inset-11"
                 >
                   <span className="absolute bottom-0 left-1/2 h-2 w-2 -translate-x-1/2 translate-y-1/2 rounded-full bg-green-400 shadow-[0_0_12px_3px_rgba(74,222,128,0.45)]" />
+                  <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_12px_3px_rgba(255,255,255,0.55)]" />
                 </div>
                 <div className="logo-float relative flex h-44 w-44 items-center justify-center rounded-full bg-white shadow-2xl shadow-blue-950/40 sm:h-64 sm:w-64 lg:h-80 lg:w-80">
                   <img
