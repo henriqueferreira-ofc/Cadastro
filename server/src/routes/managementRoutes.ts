@@ -92,11 +92,17 @@ async function requireAssociate(id: number) {
     throw new InputError('Associado não encontrado.');
 }
 
-router.get('/ambiente', (_req, res) => {
+router.get('/ambiente', async (_req, res) => {
   const schema = new URL(process.env.DATABASE_URL || 'postgresql://localhost/').searchParams.get(
     'schema',
   );
-  res.json({ development: schema === 'aafab_desenvolvimento' });
+  let connected = true;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch {
+    connected = false;
+  }
+  res.json({ development: schema === 'aafab_desenvolvimento', connected });
 });
 
 router.get('/associados', async (_req, res) => {

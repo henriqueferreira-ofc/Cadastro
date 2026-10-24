@@ -493,8 +493,14 @@ const Home: React.FC<HomeProps> = ({ onOpenPortal, onRegister, onActivate, onAdm
                   Horário de funcionamento da Secretaria
                 </p>
                 <ul className="mt-2 space-y-0.5 text-sm text-blue-100 md:pl-6">
-                  <li>Das 09:00 às 12:00</li>
-                  <li>Das 14:00 às 18:00</li>
+                  <li>
+                    <strong className="font-semibold text-white">Dias úteis:</strong> das 09:00 às
+                    12:00
+                  </li>
+                  <li>
+                    <strong className="font-semibold text-white">Dias úteis:</strong> das 14:00 às
+                    18:00
+                  </li>
                 </ul>
               </div>
               <a

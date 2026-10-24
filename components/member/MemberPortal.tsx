@@ -473,7 +473,7 @@ export default function MemberPortal({ onLogout }: MemberPortalProps) {
                   Horário de funcionamento da Secretaria:
                 </strong>
                 <br />
-                Das 09:00 às 12:00 e das 14:00 às 18:00
+                Dias úteis: das 09:00 às 12:00 e das 14:00 às 18:00
               </span>
             </p>
           </div>

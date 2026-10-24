@@ -18,7 +18,10 @@ type MemberInfo = {
   ativacaoPortalDisponivel?: boolean;
 };
 
-const AdminDashboard: React.FC = () => {
+const AdminDashboard: React.FC<{
+  environment?: { development: boolean; connected: boolean | null };
+  key?: React.Key;
+}> = ({ environment }) => {
   const backendUrl = getBackendUrl();
   const [base, setBase] = useState<BaseAutorizada[]>([]);
   const [enviados, setEnviados] = useState<CadastroEnviado[]>([]);
@@ -110,8 +113,8 @@ const AdminDashboard: React.FC = () => {
           ? data.cadastroRealizado
             ? 'CPF liberado e com cadastro já enviado.'
             : data.status === 'ACTIVE'
-            ? 'CPF liberado.'
-            : 'CPF cadastrado na base e bloqueado.'
+              ? 'CPF liberado.'
+              : 'CPF cadastrado na base e bloqueado.'
           : data?.warning || 'CPF não cadastrado na base de autorizações.',
       );
     } catch (error) {
@@ -159,11 +162,11 @@ const AdminDashboard: React.FC = () => {
             ? memberInfo?.portalAtivo
               ? 'Código de redefinição de senha gerado. Entregue-o diretamente ao titular.'
               : 'Código de ativação do Portal do Associado gerado. Entregue-o diretamente ao titular.'
-          : accessCode
-            ? 'Código gerado. Entregue-o diretamente ao associado.'
-            : data?.alreadyRegistered
-              ? 'Este CPF já possui cadastro enviado. O código temporário é usado somente no primeiro cadastro.'
-              : 'Operação concluída.',
+            : accessCode
+              ? 'Código gerado. Entregue-o diretamente ao associado.'
+              : data?.alreadyRegistered
+                ? 'Este CPF já possui cadastro enviado. O código temporário é usado somente no primeiro cadastro.'
+                : 'Operação concluída.',
       );
       await loadData();
     } catch (error) {
@@ -252,8 +255,23 @@ const AdminDashboard: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-2xl font-extrabold text-gray-800 mt-2">Cadastro</h2>
-          <p className="text-xs font-bold text-green-700 bg-green-50 border border-green-100 rounded px-2 py-1 mt-1 inline-block">
-            PAINEL ADMINISTRATIVO V1.5 · BANCO CONECTADO
+          <p
+            className={`text-xs font-bold border rounded px-2 py-1 mt-1 inline-block ${
+              environment?.connected === false
+                ? 'text-red-700 bg-red-50 border-red-100'
+                : environment?.development
+                  ? 'text-amber-800 bg-amber-50 border-amber-200'
+                  : 'text-green-700 bg-green-50 border-green-100'
+            }`}
+          >
+            PAINEL ADMINISTRATIVO V1.5 ·{' '}
+            {environment?.connected === false
+              ? 'SEM CONEXÃO COM O BANCO'
+              : environment?.connected == null
+                ? 'VERIFICANDO O BANCO…'
+                : environment.development
+                  ? 'BANCO DE TESTES CONECTADO'
+                  : 'BANCO OFICIAL CONECTADO'}
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full lg:w-auto">
