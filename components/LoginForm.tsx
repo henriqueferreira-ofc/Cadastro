@@ -18,7 +18,7 @@ import { MemberService, type ActivationEmailResult } from '../member_service';
 import { BaseAutorizada } from '../types';
 import BlockedCpfPixNotice from './BlockedCpfPixNotice';
 
-export type AccessMode = 'LOGIN' | 'ACTIVATE' | 'REGISTER';
+export type AccessMode = 'LOGIN' | 'ACTIVATE' | 'RESET' | 'REGISTER';
 
 interface LoginFormProps {
   initialMode?: AccessMode;
@@ -94,8 +94,11 @@ const LoginForm: React.FC<LoginFormProps> = ({
         return;
       }
 
-      if (mode === 'ACTIVATE' && activationStep === 'CPF') {
-        const result = await MemberService.requestActivationEmail(cleanCpf);
+      if (codeFlow && activationStep === 'CPF') {
+        const result =
+          mode === 'RESET'
+            ? await MemberService.requestPasswordResetEmail(cleanCpf)
+            : await MemberService.requestActivationEmail(cleanCpf);
         if (result.status === 'EMAIL_SENT') {
           setSentTo(result.maskedEmail);
           setActivationNotice(null);
@@ -106,12 +109,14 @@ const LoginForm: React.FC<LoginFormProps> = ({
         return;
       }
 
-      if (mode === 'ACTIVATE') {
+      if (codeFlow) {
         if (!/^\d{8}$/.test(accessCode)) {
           throw new Error('Informe o código de 8 dígitos que chegou no seu e-mail.');
         }
         if (password.length < 10 || !/[A-Za-zÀ-ÿ]/.test(password) || !/\d/.test(password)) {
-          throw new Error('Crie uma senha com pelo menos 10 caracteres, uma letra e um número.');
+          throw new Error(
+            `${mode === 'RESET' ? 'Crie uma nova senha' : 'Crie uma senha'} com pelo menos 10 caracteres, uma letra e um número.`,
+          );
         }
         if (password !== confirmation) throw new Error('A confirmação da senha não confere.');
         await MemberService.activate(cleanCpf, accessCode, password);
@@ -144,14 +149,17 @@ const LoginForm: React.FC<LoginFormProps> = ({
     }
   };
 
-  const isPasswordMode = mode === 'LOGIN' || mode === 'ACTIVATE';
+  const codeFlow = mode === 'ACTIVATE' || mode === 'RESET';
+  const isPasswordMode = mode === 'LOGIN' || codeFlow;
   const actionLabel =
     mode === 'LOGIN'
       ? 'Entrar no Portal do Associado'
-      : mode === 'ACTIVATE'
+      : codeFlow
         ? activationStep === 'CPF'
           ? 'Enviar código para o meu e-mail'
-          : 'Criar senha e entrar'
+          : mode === 'RESET'
+            ? 'Salvar nova senha e entrar'
+            : 'Criar senha e entrar'
         : registrationStatus === 'CODE_READY'
           ? 'Validar código e abrir cadastro'
           : registrationStatus === 'ALREADY_REGISTERED'
@@ -210,6 +218,17 @@ const LoginForm: React.FC<LoginFormProps> = ({
             </div>
           )}
 
+          {mode === 'RESET' && (
+            <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+              <p className="font-bold">Esqueceu a sua senha?</p>
+              <p className="mt-1 leading-relaxed">
+                Informe o seu CPF e enviaremos um código de 8 dígitos para o e-mail que você
+                cadastrou. Com ele, você cria uma nova senha. A senha atual continua valendo até
+                você concluir.
+              </p>
+            </div>
+          )}
+
           {mode === 'ACTIVATE' && (
             <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
               <p className="font-bold">
@@ -255,7 +274,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
                       setRegistrationStatus('UNVERIFIED');
                       setAccessCode('');
                     }
-                    if (mode === 'ACTIVATE') {
+                    if (codeFlow) {
                       setActivationStep('CPF');
                       setActivationNotice(null);
                       setSentTo('');
@@ -273,7 +292,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             </div>
 
-            {mode === 'ACTIVATE' && activationStep === 'CODE' && (
+            {codeFlow && activationStep === 'CODE' && (
               <div
                 role="status"
                 className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900"
@@ -301,7 +320,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             )}
 
-            {mode === 'ACTIVATE' && activationStep === 'CPF' && activationNotice && (
+            {codeFlow && activationStep === 'CPF' && activationNotice && (
               <div
                 role="alert"
                 className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800"
@@ -334,14 +353,39 @@ const LoginForm: React.FC<LoginFormProps> = ({
                   <>
                     <p className="font-bold">Você já criou a sua senha</p>
                     <p className="mt-1 leading-relaxed">
-                      Use “Entrar no portal” com o CPF e a senha. Se esqueceu, procure a Secretaria.
+                      Use “Entrar no portal” com o CPF e a senha. Se esqueceu, você pode criar uma
+                      nova com um código enviado ao seu e-mail.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => changeMode('LOGIN')}
+                        className="min-h-10 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white"
+                      >
+                        Entrar no portal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => changeMode('RESET')}
+                        className="min-h-10 rounded-lg border border-blue-300 bg-white px-4 text-xs font-bold text-blue-700"
+                      >
+                        Esqueci minha senha
+                      </button>
+                    </div>
+                  </>
+                )}
+                {activationNotice.status === 'NO_PASSWORD' && (
+                  <>
+                    <p className="font-bold">Você ainda não criou a sua senha</p>
+                    <p className="mt-1 leading-relaxed">
+                      Use “Primeiro acesso” para criar a senha com um código enviado ao seu e-mail.
                     </p>
                     <button
                       type="button"
-                      onClick={() => changeMode('LOGIN')}
+                      onClick={() => changeMode('ACTIVATE')}
                       className="mt-3 min-h-10 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white"
                     >
-                      Entrar no portal
+                      Ir para o primeiro acesso
                     </button>
                   </>
                 )}
@@ -434,15 +478,17 @@ const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             )}
 
-            {((mode === 'ACTIVATE' && activationStep === 'CODE') ||
+            {((codeFlow && activationStep === 'CODE') ||
               (mode === 'REGISTER' && registrationStatus === 'CODE_READY')) && (
               <div>
                 <label
                   htmlFor="member-code"
                   className="mb-2 block text-sm font-semibold text-gray-700"
                 >
-                  {mode === 'ACTIVATE'
-                    ? 'Código de ativação do portal'
+                  {codeFlow
+                    ? mode === 'RESET'
+                      ? 'Código para redefinir a senha'
+                      : 'Código de ativação do portal'
                     : 'Código de liberação do cadastro'}
                 </label>
                 <input
@@ -462,13 +508,17 @@ const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             )}
 
-            {(mode === 'LOGIN' || (mode === 'ACTIVATE' && activationStep === 'CODE')) && (
+            {(mode === 'LOGIN' || (codeFlow && activationStep === 'CODE')) && (
               <div>
                 <label
                   htmlFor="member-password"
                   className="mb-2 block text-sm font-semibold text-gray-700"
                 >
-                  {mode === 'ACTIVATE' ? 'Crie sua senha' : 'Senha'}
+                  {codeFlow
+                    ? mode === 'RESET'
+                      ? 'Crie sua nova senha'
+                      : 'Crie sua senha'
+                    : 'Senha'}
                 </label>
                 <div className="relative">
                   <input
@@ -480,9 +530,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
                       setPassword(e.target.value);
                       setError('');
                     }}
-                    placeholder={
-                      mode === 'ACTIVATE' ? 'Mínimo de 10 caracteres' : 'Sua senha pessoal'
-                    }
+                    placeholder={codeFlow ? 'Mínimo de 10 caracteres' : 'Sua senha pessoal'}
                     className={`${inputClass} pr-12`}
                     required
                   />
@@ -495,7 +543,16 @@ const LoginForm: React.FC<LoginFormProps> = ({
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
-                {mode === 'ACTIVATE' && (
+                {mode === 'LOGIN' && (
+                  <button
+                    type="button"
+                    onClick={() => changeMode('RESET')}
+                    className="mt-2 min-h-9 text-sm font-semibold text-blue-700 underline-offset-2 hover:underline"
+                  >
+                    Esqueci minha senha
+                  </button>
+                )}
+                {codeFlow && (
                   <p className="mt-1.5 text-xs text-gray-500">
                     Use pelo menos 10 caracteres, incluindo uma letra e um número.
                   </p>
@@ -503,7 +560,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             )}
 
-            {mode === 'ACTIVATE' && activationStep === 'CODE' && (
+            {codeFlow && activationStep === 'CODE' && (
               <div>
                 <label
                   htmlFor="member-confirmation"
@@ -536,7 +593,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             )}
 
-            {mode === 'ACTIVATE' && activationStep === 'CPF' && (
+            {codeFlow && activationStep === 'CPF' && (
               <p className="text-center text-xs text-gray-500">
                 Recebeu um código da Secretaria?{' '}
                 <button

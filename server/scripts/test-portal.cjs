@@ -162,6 +162,8 @@ const cadastroData = (cpf, suffix) => ({
       JWT_SECRET: crypto.randomBytes(40).toString('hex'),
       NODE_ENV: 'production',
       APP_ENV: 'test',
+      ACTIVATION_EMAIL_LIMIT: '200',
+      REGISTRATION_ACCESS_LIMIT: '200',
       MAIL_DRIVER: 'file',
       MAIL_FILE: mailFile,
     },
@@ -1013,6 +1015,81 @@ const cadastroData = (cpf, suffix) => ({
       // CPF liberado, com cadastro, mas bloqueado: orienta a procurar a Secretaria
       await db.member.update({ where: { cpf: third.cpf }, data: { status: 'BLOCKED' } });
       assert.equal((await (await ask(third.cpf)).json()).status, 'CONTACT_SECRETARY');
+    },
+  );
+
+  await check(
+    'esqueci minha senha: código por e-mail redefine a senha e encerra as sessões antigas',
+    async () => {
+      const { hashPassword } = require('../dist/utils/password');
+      const reset = (cpf) => call('/member/password-reset-email', { cpf });
+      const fourth = await db.cadastro.create({ data: cadastroData('15350946056', 'QUATRO') });
+      await db.member.create({ data: { cpf: fourth.cpf, status: 'ACTIVE' } });
+      // sem senha ainda: orienta para o primeiro acesso, sem enviar e-mail
+      const before = sentMail().length;
+      assert.equal((await (await reset(fourth.cpf)).json()).status, 'NO_PASSWORD');
+      assert.equal((await (await reset('86288366757')).json()).status, 'NOT_FOUND');
+      assert.equal(sentMail().length, before);
+
+      await db.memberAccount.create({
+        data: {
+          cadastroId: fourth.id,
+          passwordHash: await hashPassword('SenhaAntiga12345'),
+          passwordCreatedAt: new Date(),
+        },
+      });
+      const oldLogin = await call('/member/login', {
+        cpf: fourth.cpf,
+        password: 'SenhaAntiga12345',
+      });
+      assert.equal(oldLogin.status, 200);
+      const oldToken = (await oldLogin.json()).token;
+
+      const sent = await (await reset(fourth.cpf)).json();
+      assert.equal(sent.status, 'EMAIL_SENT');
+      const mail = sentMail().at(-1);
+      assert.equal(mail.to, 'quatro@example.invalid');
+      assert.match(mail.subject, /redefinir/i);
+      const code = (mail.text.match(/(\d{4}) (\d{4})/) || []).slice(1).join('');
+      assert.match(code, /^\d{8}$/);
+      // a senha atual continua valendo até o código ser usado
+      assert.equal(
+        (await call('/member/login', { cpf: fourth.cpf, password: 'SenhaAntiga12345' })).status,
+        200,
+      );
+      assert.equal((await (await reset(fourth.cpf)).json()).status, 'WAIT');
+
+      assert.equal(
+        (
+          await call('/member/activate', {
+            cpf: fourth.cpf,
+            code: '00000000',
+            password: 'NovaSenha12345',
+          })
+        ).status,
+        400,
+      );
+      assert.equal(
+        (await call('/member/activate', { cpf: fourth.cpf, code, password: 'NovaSenha12345' }))
+          .status,
+        200,
+      );
+      // senha antiga deixa de valer, a nova funciona e a sessão anterior é encerrada
+      assert.equal(
+        (await call('/member/login', { cpf: fourth.cpf, password: 'SenhaAntiga12345' })).status,
+        401,
+      );
+      assert.equal(
+        (await call('/member/login', { cpf: fourth.cpf, password: 'NovaSenha12345' })).status,
+        200,
+      );
+      assert.equal((await call('/member/overview', undefined, oldToken)).status, 401);
+      // o código é de uso único
+      assert.equal(
+        (await call('/member/activate', { cpf: fourth.cpf, code, password: 'OutraSenha12345' }))
+          .status,
+        400,
+      );
     },
   );
 

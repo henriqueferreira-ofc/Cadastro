@@ -32,7 +32,7 @@ const adminLoginLimiter = rateLimit({
 });
 const registrationAccessLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 12,
+  limit: Number(process.env.REGISTRATION_ACCESS_LIMIT) || 12,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { error: 'Muitas tentativas. Aguarde 15 minutos.' },
@@ -40,7 +40,7 @@ const registrationAccessLimiter = rateLimit({
 
 const activationEmailLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: Number(process.env.ACTIVATION_EMAIL_LIMIT) || 10,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { error: 'Muitas solicitações de código. Aguarde 15 minutos.' },
@@ -97,6 +97,7 @@ app.use('/api/auth/registration-guidance', registrationAccessLimiter);
 app.use('/api/member/login', adminLoginLimiter);
 app.use('/api/member/activate', registrationAccessLimiter);
 app.use('/api/member/activation-email', activationEmailLimiter);
+app.use('/api/member/password-reset-email', activationEmailLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
