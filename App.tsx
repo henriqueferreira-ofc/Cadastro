@@ -20,7 +20,16 @@ const App: React.FC = () => {
 
   useEffect(() => {
     DBService.prewarmBackend();
-    if (memberSession.get()) setView('MEMBER');
+    if (memberSession.get()) {
+      setView('MEMBER');
+    } else if (window.location.hash === '#portal') {
+      // Atalho usado por outros sites da AAFAB (ex.: portal de notícias): abre a entrada do portal.
+      setAuthMode('LOGIN');
+      setView('AUTH');
+    }
+    if (window.location.hash === '#portal') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   }, []);
 
   const handleLoginSuccess = (user: BaseAutorizada) => {
