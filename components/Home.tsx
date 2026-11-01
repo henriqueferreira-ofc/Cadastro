@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   Clock,
+  ExternalLink,
   FileText,
   HeartHandshake,
   Lock,
@@ -11,6 +12,7 @@ import {
   Newspaper,
   Scale,
   ShieldCheck,
+  Sparkles,
   UserRound,
   Wallet,
   X,
@@ -24,6 +26,7 @@ interface HomeProps {
   onAdmin: () => void;
 }
 
+const NEWS_URL = 'https://henriqueferreira-ofc.github.io/asas-da-not-cia/sobre';
 const CONTACT_EMAIL = 'aafab.secretaria@gmail.com';
 
 const pillars = [
@@ -88,6 +91,63 @@ const navLinks = [
   { href: '#como-participar', label: 'Como participar' },
   { href: '#contato', label: 'Contato' },
 ];
+
+// Destaque que leva ao portal de notícias da AAFAB (abre em outra aba).
+function NewsSpotlight() {
+  return (
+    <a
+      href={NEWS_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Asas da Notícia: saiba mais sobre as ações da AAFAB (abre em uma nova aba)"
+      className="group relative block overflow-hidden rounded-2xl bg-gradient-to-br from-blue-950 via-blue-900 to-blue-700 p-5 text-white shadow-lg shadow-blue-900/20 ring-1 ring-white/10 transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/70 lg:p-6"
+    >
+      <span
+        aria-hidden="true"
+        className="blob-drift absolute -right-10 -top-12 h-44 w-44 rounded-full bg-amber-300/25 blur-3xl"
+      />
+      <span
+        aria-hidden="true"
+        className="blob-drift-reverse absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-sky-400/20 blur-3xl"
+      />
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-green-500 via-amber-400 to-blue-400"
+      />
+      <div className="relative lg:flex lg:items-center lg:justify-between lg:gap-10">
+        <div className="lg:max-w-2xl">
+          <div className="flex items-center justify-between gap-3 lg:justify-start lg:gap-4">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-200 ring-1 ring-white/15">
+              <span className="relative flex h-2 w-2" aria-hidden="true">
+                <span className="dot-ping absolute inset-0 rounded-full bg-amber-300" />
+                <span className="dot-blink relative h-2 w-2 rounded-full bg-amber-300" />
+              </span>
+              Fique por dentro
+            </span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-amber-200 ring-1 ring-white/15 transition duration-300 group-hover:rotate-[-8deg] group-hover:scale-110 group-hover:bg-amber-300 group-hover:text-blue-950 lg:order-first lg:h-12 lg:w-12">
+              <Newspaper className="h-5 w-5" aria-hidden="true" />
+            </span>
+          </div>
+          <h3 className="mt-4 text-xl font-bold leading-tight tracking-tight lg:text-2xl">
+            Asas da Notícia
+          </h3>
+          <p className="mt-2 text-sm leading-relaxed text-blue-100 lg:text-base">
+            Acompanhe o que a AAFAB está fazendo: ações, andamentos e novidades para os associados.
+          </p>
+        </div>
+        <span className="mt-5 inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-blue-950 shadow-sm transition duration-300 group-hover:bg-amber-300 lg:mt-0 lg:text-base">
+          <Sparkles className="h-4 w-4 text-amber-500" aria-hidden="true" />
+          Saiba mais
+          <ArrowRight
+            className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+            aria-hidden="true"
+          />
+          <ExternalLink className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+        </span>
+      </div>
+    </a>
+  );
+}
 
 // Aparece suavemente quando entra na tela. Sem animação para quem prefere movimento reduzido.
 const Reveal: React.FC<{ children: React.ReactNode; delay?: number; className?: string }> = ({
@@ -329,7 +389,10 @@ const Home: React.FC<HomeProps> = ({ onOpenPortal, onRegister, onActivate, onAdm
                 recorrer e possa acompanhar a sua situação com facilidade e segurança.
               </p>
             </Reveal>
-            <div className="mt-10 grid gap-4 sm:mt-12 sm:gap-5 lg:grid-cols-3">
+            <Reveal className="mt-10 sm:mt-12">
+              <NewsSpotlight />
+            </Reveal>
+            <div className="mt-4 grid gap-4 sm:mt-5 sm:gap-5 lg:grid-cols-3">
               {pillars.map(({ icon: Icon, title, text }, index) => (
                 <Reveal key={title} delay={index * 120} className="h-full">
                   <article className="card-live group relative flex h-full gap-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 lg:block lg:p-7">
