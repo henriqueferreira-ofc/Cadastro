@@ -26,7 +26,7 @@ interface HomeProps {
   onAdmin: () => void;
 }
 
-const NEWS_URL = 'https://henriqueferreira-ofc.github.io/asas-da-not-cia/sobre';
+const NEWS_URL = 'https://henriqueferreira-ofc.github.io/asas-da-not-cia/';
 const CONTACT_EMAIL = 'aafab.secretaria@gmail.com';
 
 const pillars = [
