@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob:",
     `connect-src 'self' https://aafab-backend.onrender.com https://api.aafab.com.br ${apiOrigin}`.trim(),
+    "frame-src https://henriqueferreira-ofc.github.io",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -21,12 +21,14 @@ import logo from '../logo.png';
 
 interface HomeProps {
   onOpenPortal: () => void;
+  onOpenNews: () => void;
   onRegister: () => void;
   onActivate: () => void;
   onAdmin: () => void;
 }
 
-const NEWS_URL = 'https://henriqueferreira-ofc.github.io/asas-da-not-cia/';
+// (exportada para a tela que exibe o site de notícias dentro do portal)
+export const NEWS_URL = 'https://henriqueferreira-ofc.github.io/asas-da-not-cia/';
 const CONTACT_EMAIL = 'aafab.secretaria@gmail.com';
 
 const pillars = [
@@ -93,14 +95,13 @@ const navLinks = [
 ];
 
 // Destaque que leva ao portal de notícias da AAFAB (abre em outra aba).
-function NewsSpotlight() {
+function NewsSpotlight({ onOpen }: { onOpen: () => void }) {
   return (
-    <a
-      href={NEWS_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Asas da Notícia: saiba mais sobre as ações da AAFAB (abre em uma nova aba)"
-      className="group relative block overflow-hidden rounded-2xl bg-gradient-to-br from-blue-950 via-blue-900 to-blue-700 p-5 text-white shadow-lg shadow-blue-900/20 ring-1 ring-white/10 transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/70 lg:p-6"
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Asas da Notícia: saiba mais sobre as ações da AAFAB"
+      className="group w-full text-left relative block overflow-hidden rounded-2xl bg-gradient-to-br from-blue-950 via-blue-900 to-blue-700 p-5 text-white shadow-lg shadow-blue-900/20 ring-1 ring-white/10 transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/70 lg:p-6"
     >
       <span
         aria-hidden="true"
@@ -145,7 +146,7 @@ function NewsSpotlight() {
           <ExternalLink className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
         </span>
       </div>
-    </a>
+    </button>
   );
 }
 
@@ -188,7 +189,7 @@ const Reveal: React.FC<{ children: React.ReactNode; delay?: number; className?: 
   );
 };
 
-const Home: React.FC<HomeProps> = ({ onOpenPortal, onRegister, onActivate, onAdmin }) => {
+const Home: React.FC<HomeProps> = ({ onOpenPortal, onOpenNews, onRegister, onActivate, onAdmin }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -390,7 +391,7 @@ const Home: React.FC<HomeProps> = ({ onOpenPortal, onRegister, onActivate, onAdm
               </p>
             </Reveal>
             <Reveal className="mt-10 sm:mt-12">
-              <NewsSpotlight />
+              <NewsSpotlight onOpen={onOpenNews} />
             </Reveal>
             <div className="mt-4 grid gap-4 sm:mt-5 sm:gap-5 lg:grid-cols-3">
               {pillars.map(({ icon: Icon, title, text }, index) => (

@@ -3,7 +3,7 @@ import logo from './logo.png';
 import { BaseAutorizada, ViewState } from './types';
 import { DBService } from './db_service';
 import LoginForm, { type AccessMode } from './components/LoginForm';
-import Home from './components/Home';
+import Home, { NEWS_URL } from './components/Home';
 import RegistrationForm from './components/RegistrationForm';
 import AdminPanel from './components/AdminPanel';
 import SuccessScreen from './components/SuccessScreen';
@@ -57,6 +57,38 @@ const App: React.FC = () => {
     resetFlow();
   }, [resetFlow]);
 
+  if (view === 'NEWS') {
+    // O site de notícias aparece dentro do portal, como se fosse um só site.
+    return (
+      <div className="flex h-screen flex-col bg-white">
+        <header className="flex items-center justify-between gap-3 bg-blue-900 px-3 py-2 text-white shadow-md sm:px-4">
+          <button
+            type="button"
+            onClick={() => setView('HOME')}
+            className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Voltar à AAFAB
+          </button>
+          <button
+            type="button"
+            onClick={() => openAuth('LOGIN')}
+            className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm font-bold text-blue-900 hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+          >
+            <UserRound className="h-4 w-4" aria-hidden="true" />
+            Portal do Associado
+          </button>
+        </header>
+        <iframe
+          src={NEWS_URL}
+          title="Asas da Notícia"
+          className="w-full flex-1 border-0"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    );
+  }
+
   const wideView = view === 'ADMIN' || view === 'MEMBER';
 
   if (view === 'HOME') {
@@ -64,6 +96,7 @@ const App: React.FC = () => {
       <>
         <Home
           onOpenPortal={() => openAuth('LOGIN')}
+          onOpenNews={() => setView('NEWS')}
           onRegister={() => openAuth('REGISTER')}
           onActivate={() => openAuth('ACTIVATE')}
           onAdmin={() => setShowAdminAuth(true)}
