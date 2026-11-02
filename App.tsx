@@ -32,6 +32,34 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // O site de notícias (dentro da tela) pede o portal levando a aba para aafab.com.br/#portal.
+  useEffect(() => {
+    const onHash = () => {
+      if (window.location.hash !== '#portal') return;
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      if (memberSession.get()) {
+        setView('MEMBER');
+      } else {
+        setAuthMode('LOGIN');
+        setView('AUTH');
+      }
+    };
+    // O botão "voltar" do navegador sai das notícias e volta à página inicial.
+    const onPop = () => setView((v) => (v === 'NEWS' ? 'HOME' : v));
+    window.addEventListener('hashchange', onHash);
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('hashchange', onHash);
+      window.removeEventListener('popstate', onPop);
+    };
+  }, []);
+
+  const openNews = () => {
+    window.history.pushState({ news: true }, '');
+    setView('NEWS');
+    window.scrollTo({ top: 0 });
+  };
+
   const handleLoginSuccess = (user: BaseAutorizada) => {
     setActiveUser(user);
     setView('FORM');
@@ -58,34 +86,14 @@ const App: React.FC = () => {
   }, [resetFlow]);
 
   if (view === 'NEWS') {
-    // O site de notícias aparece dentro do portal, como se fosse um só site.
+    // O site de notícias ocupa a tela inteira, como se fosse parte do mesmo site.
     return (
-      <div className="flex h-screen flex-col bg-white">
-        <header className="flex items-center justify-between gap-3 bg-blue-900 px-3 py-2 text-white shadow-md sm:px-4">
-          <button
-            type="button"
-            onClick={() => setView('HOME')}
-            className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Voltar à AAFAB
-          </button>
-          <button
-            type="button"
-            onClick={() => openAuth('LOGIN')}
-            className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm font-bold text-blue-900 hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-          >
-            <UserRound className="h-4 w-4" aria-hidden="true" />
-            Portal do Associado
-          </button>
-        </header>
-        <iframe
-          src={NEWS_URL}
-          title="Asas da Notícia"
-          className="w-full flex-1 border-0"
-          referrerPolicy="no-referrer"
-        />
-      </div>
+      <iframe
+        src={NEWS_URL}
+        title="Asas da Notícia"
+        className="block h-screen w-full border-0"
+        referrerPolicy="no-referrer"
+      />
     );
   }
 
@@ -96,7 +104,7 @@ const App: React.FC = () => {
       <>
         <Home
           onOpenPortal={() => openAuth('LOGIN')}
-          onOpenNews={() => setView('NEWS')}
+          onOpenNews={openNews}
           onRegister={() => openAuth('REGISTER')}
           onActivate={() => openAuth('ACTIVATE')}
           onAdmin={() => setShowAdminAuth(true)}
